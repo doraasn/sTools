@@ -860,7 +860,7 @@ function drawDaily(dateFilteredCells){
       ] : [
         { type:'input',  h:hi+hc, v:vals.input+vals.cache, color:baseColor,                   y:yBase,           label:'输入' },
         { type:'output', h:ho,    v:vals.output,            color:lightenColor(baseColor,0.2), y:yBase-hi-hc,     label:'输出' },
-      ]
+      ];
         for (const s of g.segs) {
           if (mx >= g.x && mx <= g.x + g.w && my >= s.y && my <= s.y + s.h) { hitKey = k; break; }
         }
