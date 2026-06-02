@@ -763,9 +763,7 @@ function renderAll(){
   }
   html += '</div></div>';
 
-  // Model total bar chart (all tools)
   const byModel = getModelTotals(allCells);
-  html += '<div class="cc"><h3>${SVG.bar} 模型 Token 总量</h3><div class="legend" id="legModelBar" style="margin-bottom:8px"></div><div class="cw" style="height:'+Math.max(60,byModel.length*52+40)+'px"><canvas id="chModelBar"></canvas></div></div>';
 
   if (currentTool === 'claude') {
     const byProject = getProjectTotals(allCells);
@@ -780,15 +778,18 @@ function renderAll(){
       +'</div></div>';
   }
 
+  // Model total bar chart (all tools)
+  html += '<div class="cc"><h3>${SVG.bar} 模型 Token 总量</h3><div class="legend" id="legModelBar" style="margin-bottom:8px"></div><div class="cw" style="height:'+Math.max(60,byModel.length*52+40)+'px"><canvas id="chModelBar"></canvas></div></div>';
+
   $('main').innerHTML = html;
   drawDaily(allCells);
-  drawModelBars(byModel);
   if (currentTool === 'claude') {
     const bm = getModelTotals(allCells);
     const bp = getProjectTotals(allCells);
     ctxPie('chModel', bm, m=>m.name, m=>m.total, chModelHidden);
     ctxPie('chProject', bp, m=>m.name, m=>m.total, chProjectHidden);
   }
+  drawModelBars(byModel);
 }
 
 // ===== Canvas 堆叠条形图 =====
