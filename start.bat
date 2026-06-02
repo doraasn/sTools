@@ -1,20 +1,20 @@
 @echo off
-title Token ¿´°å
+title Token çœ‹æ¿
 
 :MENU
 cls
 echo.
 echo ==============================
-echo   Token ¿´°å
+echo   Token çœ‹æ¿
 echo ==============================
 echo.
-echo  1. Æô¶¯
-echo  2. Í£Ö¹
-echo  3. ÖØÆô
-echo  4. ´ò¿ªä¯ÀÀÆ÷
-echo  0. ÍË³ö
+echo  1. å¯åŠ¨
+echo  2. åœæ­¢
+echo  3. é‡å¯
+echo  4. æµè§ˆå™¨
+echo  0. é€€å‡º
 echo.
-set /p sel=ÇëÑ¡Ôñ:
+set /p sel=è¯·é€‰æ‹©:
 
 if "%sel%"=="1" goto START
 if "%sel%"=="2" goto STOP
@@ -27,12 +27,12 @@ goto MENU
 cls
 echo.
 echo ==============================
-echo   ÕýÔÚÆô¶¯...
+echo   æ­£åœ¨å¯åŠ¨...
 echo ==============================
 echo.
 start http://localhost:3456
-start "" "%~dp0Token ¿´°å.exe"
-echo ·þÎñÒÑÆô¶¯
+start "" "%~dp0Token çœ‹æ¿.exe"
+echo å¯åŠ¨å®Œæˆ
 pause
 goto MENU
 
@@ -40,13 +40,13 @@ goto MENU
 cls
 echo.
 echo ==============================
-echo   ÕýÔÚÍ£Ö¹...
+echo   æ­£åœ¨åœæ­¢...
 echo ==============================
 echo.
 for /f "tokens=5" %%a in ('netstat -ano ^| find ":3456" ^| find "LISTENING"') do (
   taskkill /F /PID %%a >nul 2>&1
 )
-echo ÒÑÍ£Ö¹
+echo å·²åœæ­¢
 pause
 goto MENU
 
@@ -54,7 +54,7 @@ goto MENU
 cls
 echo.
 echo ==============================
-echo   ÕýÔÚÖØÆô...
+echo   æ­£åœ¨é‡å¯...
 echo ==============================
 echo.
 for /f "tokens=5" %%a in ('netstat -ano ^| find ":3456" ^| find "LISTENING"') do (
@@ -62,15 +62,15 @@ for /f "tokens=5" %%a in ('netstat -ano ^| find ":3456" ^| find "LISTENING"') do
 )
 timeout /t 1 /nobreak >nul
 start http://localhost:3456
-start "" "%~dp0Token ¿´°å.exe"
-echo ÒÑÖØÆô
+start "" "%~dp0Token çœ‹æ¿.exe"
+echo å·²é‡å¯
 pause
 goto MENU
 
 :BROWSER
 start http://localhost:3456
 echo.
-echo ä¯ÀÀÆ÷ÒÑ´ò¿ª
+echo æµè§ˆå™¨å·²æ‰“å¼€
 timeout /t 2 /nobreak >nul
 goto MENU
 
