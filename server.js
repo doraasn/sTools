@@ -78,14 +78,18 @@ function parseFile(fp, proj) {
   if (!text) { console.log('    [Claude] 空文件跳过: ' + path.basename(fp)); return null; }
   const records = [];
   let sid = '';
+  let lastUsageKey = '';
 
   for (const line of text.split('\n').filter(Boolean)) {
     try {
       const e = JSON.parse(line);
-      if (e.sessionId) sid = e.sessionId;
+      if (e.sessionId) { if (e.sessionId !== sid) lastUsageKey = ''; sid = e.sessionId; }
       if ((e.type === 'assistant' || e.type === 'message') && e.message && e.message.usage && e.timestamp) {
         const u = e.message.usage;
         const model = cleanModel(e.message.model) || 'unknown';
+        const usageKey = [u.input_tokens, u.output_tokens, u.cache_read_input_tokens, u.cache_creation_input_tokens].join('|');
+        if (usageKey === lastUsageKey) continue;
+        lastUsageKey = usageKey;
         records.push({
           date: e.timestamp.substring(0, 10),
           model,
@@ -395,14 +399,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--t);min-height:100v
 .fc .x:hover{opacity:1}
 
 /* Chart cards */
-.cc{background:var(--s);border:1px solid var(--b);border-radius:var(--r);padding:16px;margin-bottom:10px}
+.cc{background:var(--s);border:1px solid var(--b);border-radius:var(--r);padding:16px;margin-bottom:10px;overflow:hidden}
 .cc h3{font-size:13px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .cc h3 svg{color:var(--a)}
 .cw{position:relative;width:100%}
-.cw canvas{display:block;width:100%!important}
-
-/* Daily chart */
-.cd{height:340px}
+.cw canvas{display:block;width:100%;height:340px}
 
 /* Pie row inside card */
 .pr{display:grid;grid-template-columns:1fr 1fr;gap:0}
@@ -513,7 +514,7 @@ function darkenColor(hex, f){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.
 function lightenColor(hex, f){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return '#'+[r,g,b].map(c=>Math.min(255,Math.round(c+(255-c)*f)).toString(16).padStart(2,'0')).join('')}
 
 let data = null, rawData = null;
-let chModelHidden = new Set(), chProjectHidden = new Set(), chDailyHidden = new Set();
+let chModelHidden = new Set(), chProjectHidden = new Set(), chDailyHidden = new Set(), chModelBarHidden = new Set();
 let dateFilter = { type: 'all', start: '', end: '' };
 let currentFilteredCells = [];
 let currentTool = 'claude';
@@ -751,7 +752,7 @@ function renderAll(){
 
   // Daily bar chart
   const hasCache = allCells.some(c => c.cacheRead > 0 || c.cacheCreate > 0);
-  html += '<div class="cc"><h3>${SVG.bar} 每日 Token 趋势</h3><div class="legend" id="legDaily" style="margin-bottom:8px;max-height:40px"></div><div class="cw cd"><canvas id="chDaily"></canvas></div>';
+  html += '<div class="cc" style="height:480px"><h3>${SVG.bar} 每日 Token 趋势</h3><div class="legend" id="legDaily" style="margin-bottom:8px;max-height:40px"></div><canvas id="chDaily" style="display:block;width:100%;height:340px"></canvas>';
   html += '<div style="display:flex;gap:14px;justify-content:center;margin-top:10px;flex-wrap:wrap;font-size:12px;color:var(--t2)">';
   if (hasCache) {
     html += '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:#06b6d4;display:inline-block"></span> 输入（未命中缓存）</span>'
@@ -779,7 +780,12 @@ function renderAll(){
   }
 
   // Model total bar chart (all tools)
-  html += '<div class="cc"><h3>${SVG.bar} 模型 Token 总量</h3><div class="legend" id="legModelBar" style="margin-bottom:8px"></div><div class="cw" style="height:'+Math.max(60,byModel.length*52+40)+'px"><canvas id="chModelBar"></canvas></div></div>';
+  html += '<div class="cc"><h3>${SVG.bar} 模型 Token 总量</h3><div class="legend" id="legModelBar" style="margin-bottom:8px;max-height:40px"></div><div class="cw" style="min-height:'+Math.max(60,byModel.length*44+40)+'px"><canvas id="chModelBar"></canvas></div>'
+    +'<div style="display:flex;gap:14px;justify-content:center;margin-top:8px;flex-wrap:wrap;font-size:12px;color:var(--t2)">'
+    +'<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:var(--a);display:inline-block"></span> 输入</span>'
+    +'<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:'+(hasCache?'#76d7e7':'var(--a)')+';display:inline-block"></span> '+(hasCache?'输入(缓存命中)':'')+'</span>'
+    +'<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:2px;background:#38c5dd;display:inline-block"></span> 输出</span>'
+    +'</div></div>';
 
   $('main').innerHTML = html;
   drawDaily(allCells);
@@ -794,22 +800,26 @@ function renderAll(){
 
 // ===== Canvas 堆叠条形图 =====
 function drawDaily(dateFilteredCells){
-  const canvas = $('chDaily'); if(!canvas) return;
+  const canvas = $('chDaily');
+  if(!canvas) return;
   const dateCells = dateFilteredCells;
   let cells = dateFilteredCells.filter(c => !chDailyHidden.has(c.model));
   const dates = [...new Set(cells.map(c=>c.date))].sort();
   const grouped = {};
   for(const c of cells){
     if(!grouped[c.date]) grouped[c.date]={};
-    if(!grouped[c.date][c.model]) grouped[c.date][c.model]={input:0,output:0,cache:0};
+    if(!grouped[c.date][c.model]) grouped[c.date][c.model]={input:0,output:0,cache:0,cacheRead:0};
     grouped[c.date][c.model].input+=c.input;
     grouped[c.date][c.model].output+=c.output;
+    grouped[c.date][c.model].cacheRead+=c.cacheRead;
     grouped[c.date][c.model].cache+=c.cacheRead+c.cacheCreate;
   }
 
   const hasCache = dateFilteredCells.some(c => c.cacheRead > 0 || c.cacheCreate > 0);
-  const rect = canvas.parentElement.getBoundingClientRect();
-  const W = Math.max(rect.width-16,400), H = 340;
+  const parent = canvas.parentElement;
+  parent.style.setProperty('height', '480px', 'important');
+  const rect = parent.getBoundingClientRect();
+  const W = Math.max(rect.width,400), H = 340;
   const dpr = window.devicePixelRatio||1;
   canvas.width=W*dpr; canvas.height=H*dpr;
   canvas.style.width=W+'px'; canvas.style.height=H+'px';
@@ -855,12 +865,12 @@ function drawDaily(dateFilteredCells){
       const mi = allModelNames.indexOf(model);
       const baseColor = COLORS[mi % COLORS.length];
       const segs = hasCache ? [
-        { type:'cache',  h:hc, v:vals.cache,  color:lightenColor(baseColor,0.45),y:yBase,           label:'输入（命中缓存）' },
-        { type:'input',  h:hi, v:vals.input,  color:baseColor,                   y:yBase-hc,        label:'输入（未命中缓存）' },
-        { type:'output', h:ho, v:vals.output, color:lightenColor(baseColor,0.2), y:yBase-hc-hi,     label:'输出' },
+        { type:'cache',  h:hc, v:vals.cache,  color:lightenColor(baseColor,0.45),y:yBase-hc,            label:'输入（命中缓存）',cacheRead:vals.cacheRead },
+        { type:'input',  h:hi, v:vals.input,  color:baseColor,                   y:yBase-hc-hi,         label:'输入（未命中缓存）' },
+        { type:'output', h:ho, v:vals.output, color:lightenColor(baseColor,0.2), y:yBase-hc-hi-ho,      label:'输出' },
       ] : [
-        { type:'input',  h:hi+hc, v:vals.input+vals.cache, color:baseColor,                   y:yBase,           label:'输入' },
-        { type:'output', h:ho,    v:vals.output,            color:lightenColor(baseColor,0.2), y:yBase-hi-hc,     label:'输出' },
+        { type:'input',  h:hi+hc, v:vals.input+vals.cache, color:baseColor,                   y:yBase-hi-hc,         label:'输入' },
+        { type:'output', h:ho,    v:vals.output,            color:lightenColor(baseColor,0.2), y:yBase-hi-hc-ho,     label:'输出' },
       ];
       const gk = d+'|'+model;
       const visibleSegs = segs.filter(s => s.h > 0.5);
@@ -947,9 +957,15 @@ function drawDaily(dateFilteredCells){
         this._hoverGroupKey = hitKey;
         if (hitKey) {
           const g = gm[hitKey];
-          let html = '<strong>'+esc(g.date)+'</strong> '+esc(g.model)+'<br>';
+          const totalTokens = g.segs.reduce((s, seg) => s + seg.v, 0);
+          let html = '<strong>'+esc(g.date)+'</strong> '+esc(g.model)+'<br>总计: '+fmt(totalTokens)+' Token<br>';
+          let cacheRead = 0, inputV = 0;
+          for (const s of g.segs) { if (s.cacheRead) cacheRead += s.cacheRead; if (s.type === 'input') inputV = s.v; }
           for (const s of g.segs) {
             html += esc(s.label)+': '+fmt(s.v)+' Token<br>';
+          }
+          if (cacheRead > 0 && cacheRead+inputV > 0) {
+            html += '缓存命中率: '+(cacheRead/(cacheRead+inputV)*100).toFixed(1)+'%';
           }
           tp.innerHTML = html;
           tp.classList.add('show');
@@ -1000,42 +1016,63 @@ function roundRect(ctx,x,y,w,h,r){
 // ===== 水平堆叠条形图（模型总量） =====
 function drawModelBars(models){
   const canvas = $('chModelBar'); if(!canvas) return;
+  const visibleModels = models.filter(m => !chModelBarHidden.has(m.name));
   const hasCache = models.some(m => m.cacheRead > 0);
   const rect = canvas.parentElement.getBoundingClientRect();
-  const W = Math.max(rect.width-16,400);
-  const rowH = 44, padL = 130, padR = 80, padTop = 24, padBottom = 16;
-  const H = Math.max(60, models.length * rowH + padTop + padBottom);
+  const W = Math.max(rect.width, 400);
+  const rowH = 44, padL = 140, padR = 80, padTop = 20, padBottom = 16;
+  const H = Math.max(60, visibleModels.length * rowH + padTop + padBottom);
   const dpr = window.devicePixelRatio||1;
-  canvas.width=W*dpr; canvas.height=H*dpr;
-  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  // Fix container height to match filtered content
+  canvas.parentElement.style.height = H + 'px';
   const ctx = canvas.getContext('2d');
-  ctx.scale(dpr,dpr);
+  ctx.scale(dpr, dpr);
   const isDark = document.documentElement.getAttribute('data-theme')==='dark';
   const tc = isDark?'#a8a29e':'#78716c', gc = isDark?'#292524':'#e7e5e4';
   const bw = W - padL - padR;
   ctx.clearRect(0,0,W,H);
-  if(!models.length){ctx.fillStyle=tc;ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('暂无数据',W/2,H/2);return;}
-  const maxTotal = Math.max(...models.map(m=>m.total),1);
+  if(!visibleModels.length){ctx.fillStyle=tc;ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('暂无数据',W/2,H/2);return;}
+  const maxTotal = Math.max(...visibleModels.map(m=>m.total),1);
 
-  // Legend
+  // Model name legend (toggle filter)
   const leg = $('legModelBar');
   if (leg) {
-    leg.innerHTML = '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:12px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:2px;background:#06b6d4;display:inline-block"></span> 输入</span>'
-      +'<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:12px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:2px;background:'+(hasCache?'#76d7e7':'#06b6d4')+';display:inline-block"></span> '+(hasCache?'输入(命中缓存)':'')+'</span>'
-      +'<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:2px;background:#38c5dd;display:inline-block"></span> 输出</span>';
+    let lh = '';
+    for(let i=0;i<models.length;i++){
+      const m = models[i];
+      const color = COLORS[i % COLORS.length];
+      const hidden = chModelBarHidden.has(m.name);
+      lh += '<span class="li'+(hidden?'':' act')+'" data-filter="modelbar:'+esc(m.name)+'">'
+        +'<span class="d" style="background:'+color+';'+(hidden?'opacity:0.3':'')+'"></span>'
+        +'<span style="'+(hidden?'opacity:0.4;text-decoration:line-through':'')+'">'+esc(m.name)+'</span>'
+        +'</span>';
+    }
+    leg.innerHTML = lh;
   }
 
-  // Grid lines
-  ctx.strokeStyle=gc; ctx.lineWidth=0.5;
-  for(let i=0;i<=4;i++){const x=padL+bw*i/4; ctx.beginPath();ctx.moveTo(x,padTop);ctx.lineTo(x,H-padBottom);ctx.stroke();}
+  // Hover state
+  const hoverKey = canvas._hoverKey || '';
+  const groupMap = {};
 
-  for(let i=0;i<models.length;i++){
-    const m = models[i];
+  for(let i=0;i<visibleModels.length;i++){
+    const m = visibleModels[i];
     const y = padTop + i * rowH;
-    const barH = Math.min(rowH-10,32);
+    const barH = Math.min(rowH-10, 30);
+    const baseColor = COLORS[i % COLORS.length];
+    const pctOfTotal = (m.total / maxTotal * 100).toFixed(1);
+
+    // Row hover background
+    if(hoverKey === m.name){
+      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)';
+      roundRect(ctx, padL, y-2, bw, rowH-2, 4);
+    }
 
     // Model name
-    ctx.fillStyle=tc; ctx.font='13px sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle';
+    ctx.fillStyle = hoverKey === m.name ? (isDark?'#fff':'#000') : tc;
+    ctx.font = (hoverKey === m.name ? 'bold ':'') + '13px sans-serif';
+    ctx.textAlign='right'; ctx.textBaseline='middle';
     ctx.fillText(m.name, padL-8, y+barH/2);
 
     // Segments
@@ -1044,37 +1081,109 @@ function drawModelBars(models){
     const ow = m.output / maxTotal * bw;
     const x0 = padL;
 
-    // Input (no cache)
-    if(iw>2){ctx.fillStyle='#06b6d4'; roundRect(ctx,x0,y,iw,barH,2);}
-    // Cache read
-    if(cw2>2){ctx.fillStyle='#76d7e7'; roundRect(ctx,x0+iw,y,cw2,barH,2);}
-    // Output
-    if(ow>2){ctx.fillStyle='#38c5dd'; roundRect(ctx,x0+iw+cw2,y,ow,barH,2);}
+    const inputColor = baseColor;
+    const cacheColor = lightenColor(baseColor, 0.45);
+    const outputColor = lightenColor(baseColor, 0.2);
 
-    // Separator lines between segments
-    ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=0.5;
-    if(iw>2){ctx.beginPath();ctx.moveTo(x0+iw,y);ctx.lineTo(x0+iw,y+barH);ctx.stroke();}
-    if(cw2>2){ctx.beginPath();ctx.moveTo(x0+iw+cw2,y);ctx.lineTo(x0+iw+cw2,y+barH);ctx.stroke();}
+    const segs = [];
+    if(iw > 2) segs.push({type:'input', x:x0, w:iw, color:inputColor, label:'输入', val:m.input});
+    if(cw2 > 2) segs.push({type:'cache', x:x0+iw, w:cw2, color:cacheColor, label:'输入(缓存命中)', val:m.cacheRead});
+    if(ow > 2) segs.push({type:'output', x:x0+iw+cw2, w:ow, color:outputColor, label:'输出', val:m.output});
+
+    // Bar background track
+    ctx.fillStyle = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+    roundRect(ctx, x0, y, bw, barH, 3);
+
+    // Draw segments
+    for(const seg of segs){
+      if(hoverKey === m.name){
+        ctx.save();
+        ctx.shadowColor = 'rgba(255,255,255,0.25)';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = seg.color;
+        roundRect(ctx, seg.x, y-1, seg.w, barH+2, 3);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      } else {
+        ctx.fillStyle = seg.color;
+        roundRect(ctx, seg.x, y, seg.w, barH, 2);
+      }
+    }
+
+    // Store geometry for hover
+    // Store all data for tooltip (regardless of width thresholds)
+    groupMap[m.name] = { model: m.name, y, barH, segs, total: m.total, inputTotal: m.input + m.cacheRead, cacheReadTotal: m.cacheRead,
+      allSegs: [
+        { type:'input',  label:'输入',              val:m.input },
+        { type:'cache',  label:'输入(缓存命中)',      val:m.cacheRead },
+        { type:'output', label:'输出',              val:m.output },
+      ].filter(s => s.val > 0) };
 
     // Total value label on right
-    ctx.fillStyle=tc; ctx.font='bold 13px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
-    ctx.fillText(fmt(m.total), x0+bw+6, y+barH/2);
+    ctx.fillStyle=tc; ctx.font='13px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(fmt(m.total), x0+bw+8, y+barH/2);
 
-    // 	      // Cache hit rate label on each segment
-	    if (m.cacheRead > 0 && cw2 > 20) {
-	      const rate = (m.cacheRead / (m.input + m.cacheRead) * 100).toFixed(1);
-	      ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
-	      ctx.fillText(rate+'%', x0+iw+cw2/2, y+barH/2+1);
-	    }
-	    // Token count labels on segments
-	    if (iw > 20) {
-	      ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font='11px sans-serif'; ctx.textAlign='center';
-	      ctx.fillText(fmt(m.input), x0+iw/2, y+barH/2+1);
-	    }
-	    if (ow > 20) {
-	      ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font='11px sans-serif'; ctx.textAlign='center';
-	      ctx.fillText(fmt(m.output), x0+iw+cw2+ow/2, y+barH/2+1);
-	    }
+    // Percentage of total
+    ctx.fillStyle = isDark?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.25)';
+    ctx.font='11px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(pctOfTotal+'%', x0+bw+8, y+barH/2+15);
+  }
+
+  canvas._groupMap = groupMap;
+  canvas._chartData = models; // store original for redraw
+
+  // Hover events
+  if (!canvas._hoverInit) {
+    canvas._hoverInit = true;
+    canvas.addEventListener('mousemove', function(e) {
+      const rect = this.getBoundingClientRect();
+      const sx = this.width / rect.width, sy = this.height / rect.height;
+      const mx = (e.clientX - rect.left) * sx / dpr;
+      const my = (e.clientY - rect.top) * sy / dpr;
+      const gm = this._groupMap || {};
+      const tp = $('tp');
+      const keys = Object.keys(gm);
+      if (!keys.length) {
+        if (this._hoverKey) { this._hoverKey = ''; tp.classList.remove('show'); drawModelBars(this._chartData||models); }
+        return;
+      }
+      let hitKey = '';
+      for (const k of keys) {
+        const g = gm[k];
+        for (const s of g.segs) {
+          if (mx >= s.x && mx <= s.x + s.w && my >= g.y && my <= g.y + g.barH) { hitKey = k; break; }
+        }
+        if (hitKey) break;
+      }
+      if (hitKey !== this._hoverKey) {
+        this._hoverKey = hitKey;
+        if (hitKey) {
+          const g = gm[hitKey];
+          let cacheRead = g.cacheReadTotal || 0, totalInput = g.inputTotal || 0;
+          const cacheRate = totalInput > 0 ? (cacheRead/totalInput*100).toFixed(1) : '0.0';
+          let html = '<strong>'+esc(g.model)+'</strong><br>总计: '+fmt(g.total)+' Token';
+          const displaySegs = g.allSegs || g.segs;
+          for (const s of displaySegs) {
+            html += '<br>'+esc(s.label)+': '+fmt(s.val)+' Token';
+          }
+          if (cacheRead > 0 && totalInput > 0) {
+            html += '<br>缓存命中率: '+cacheRate+'%';
+          }
+          tp.innerHTML = html;
+          tp.classList.add('show');
+        } else {
+          tp.classList.remove('show');
+        }
+        drawModelBars(this._chartData||models);
+      }
+      if (hitKey) {
+        tp.style.left = (e.clientX + 14) + 'px';
+        tp.style.top = (e.clientY - 12) + 'px';
+      }
+    });
+    canvas.addEventListener('mouseleave', function() {
+      if (this._hoverKey) { this._hoverKey = ''; $('tp').classList.remove('show'); drawModelBars(this._chartData||models); }
+    });
   }
 }
 
@@ -1361,7 +1470,7 @@ document.addEventListener('click', function(e) {
     if (tool === currentTool) return;
     currentTool = tool;
     renderToolSwitcher();
-    chModelHidden=new Set(); chProjectHidden=new Set(); chDailyHidden=new Set();
+    chModelHidden=new Set(); chProjectHidden=new Set(); chDailyHidden=new Set(); chModelBarHidden=new Set();
     dateFilter={type:'all',start:'',end:''};
     switchingTool = true;
     if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
@@ -1409,6 +1518,10 @@ document.addEventListener('click', function(e) {
     if (chDailyHidden.has(name)) chDailyHidden.delete(name);
     else chDailyHidden.add(name);
     drawDaily(currentFilteredCells);
+    } else if (type === 'modelbar') {
+    if (chModelBarHidden.has(name)) chModelBarHidden.delete(name);
+    else chModelBarHidden.add(name);
+    drawModelBars(getModelTotals(currentFilteredCells));
     }
 });
 
