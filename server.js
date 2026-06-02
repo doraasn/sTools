@@ -861,6 +861,82 @@ function drawDaily(dateFilteredCells){
         { type:'input',  h:hi+hc, v:vals.input+vals.cache, color:baseColor,                   y:yBase,           label:'输入' },
         { type:'output', h:ho,    v:vals.output,            color:lightenColor(baseColor,0.2), y:yBase-hi-hc,     label:'输出' },
       ];
+      const gk = d+'|'+model;
+      const visibleSegs = segs.filter(s => s.h > 0.5);
+      const isGroupHov = gk === hoverGroupKey;
+
+      // Store group for hover
+      if (visibleSegs.length) {
+        groupMap[gk] = { date:d, model, x, w:bw, segs: visibleSegs };
+      }
+
+      // Draw segments
+      for(const seg of segs){
+        if(seg.h > 0.5){
+          if(isGroupHov){
+            ctx.shadowColor = 'rgba(255,255,255,0.25)';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = seg.color;
+            roundRect(ctx, x-1, seg.y-1, bw+2, seg.h+2, 3);
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = seg.color;
+            roundRect(ctx, x, seg.y, bw, seg.h, 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+      yOff += hi+ho+hc;
+    }
+
+    // Value
+    const dayTotal = models.reduce((s,[,v])=>s+v.input+v.output+v.cache,0);
+    ctx.fillStyle=tc; ctx.font='12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(fmt(dayTotal),x+bw/2,pad.top+ch+20);
+
+    // Date
+    ctx.save();
+    const manyDates = n > 6;
+    if (manyDates) {
+      ctx.translate(x+bw/2, pad.top+ch+42);
+      ctx.rotate(-0.55);
+      ctx.font='12px sans-serif'; ctx.textAlign='right';
+    } else {
+      ctx.translate(x+bw/2, pad.top+ch+42);
+      ctx.font='12px sans-serif'; ctx.textAlign='center';
+    }
+    ctx.fillStyle=tc;
+    ctx.fillText(fmtDate(d),0,0);
+    ctx.restore();
+  }
+
+  canvas._groupMap = groupMap;
+  canvas._pad = pad;
+  canvas._ch = ch;
+  canvas._maxVal = maxVal;
+
+  if (!canvas._hoverInit) {
+    canvas._hoverInit = true;
+    canvas.addEventListener('mousemove', function(e) {
+      const rect = this.getBoundingClientRect();
+      const sx = this.width / rect.width, sy = this.height / rect.height;
+      const mx = (e.clientX - rect.left) * sx / dpr;
+      const my = (e.clientY - rect.top) * sy / dpr;
+      const gm = this._groupMap || {};
+      const tp = $('tp');
+      const keys = Object.keys(gm);
+      if (!keys.length) {
+        if (this._hoverGroupKey) { this._hoverGroupKey = ''; tp.classList.remove('show'); if(this._chartData)drawDaily(this._chartData); }
+        return;
+      }
+      let hitKey = '';
+      for (const k of keys) {
+        const g = gm[k];
         for (const s of g.segs) {
           if (mx >= g.x && mx <= g.x + g.w && my >= s.y && my <= s.y + s.h) { hitKey = k; break; }
         }
