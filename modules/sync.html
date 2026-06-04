@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据同步工具</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2333;
+    --border: #30363d; --border-hover: #484f58; --border-focus: #58a6ff;
+    --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+    --primary: #58a6ff; --primary-hover: #79c0ff;
+    --primary-bg: rgba(56,139,253,.12);
+    --success: #3fb950; --success-bg: rgba(63,185,80,.12);
+    --danger: #f85149; --danger-bg: rgba(248,81,73,.12);
+    --radius: 8px; --radius-lg: 12px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+    --transition: all .2s ease;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; font-size: 14px; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+  .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: middle; flex-shrink: 0; }
+  .icon-sm { width: 14px; height: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .header-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .logo { width: 36px; height: 36px; background: linear-gradient(135deg, var(--primary), var(--accent, #bc8cff)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo svg { width: 20px; height: 20px; stroke: #fff; stroke-width: 2; fill: none; }
+  .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -.3px; }
+  .header h1 small { font-weight: 400; color: var(--text2); font-size: 14px; margin-left: 8px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 14px; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .panel-hd { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; cursor: pointer; user-select: none; transition: background .15s; }
+  .panel-hd:hover { background: var(--surface2); }
+  .panel-hd-left { display: flex; align-items: center; gap: 10px; }
+  .panel-hd-left h3 { font-size: 14px; font-weight: 600; }
+  .panel-hd-left .icon { color: var(--primary); }
+  .panel-hd-right { display: flex; align-items: center; gap: 10px; }
+  .panel-hd .arrow { transition: transform .25s ease; color: var(--text3); }
+  .panel-hd .arrow.open { transform: rotate(180deg); }
+  .panel-bd-wrap { max-height: 600px; transition: max-height .35s ease, opacity .2s ease; overflow: hidden; }
+  .panel-bd-wrap.collapsed { max-height: 0; opacity: 0; }
+  .panel-bd { padding: 0 18px 16px; }
+  .panel.log-panel .panel-bd-wrap { max-height: none; }
+  .panel.log-panel .panel-bd-wrap.collapsed { max-height: 0; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: var(--transition); background: var(--surface); color: var(--text); text-decoration: none; line-height: 1.4; }
+  .btn:hover { border-color: var(--border-hover); background: var(--surface2); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+  .btn:disabled:hover { background: var(--surface); border-color: var(--border); }
+  .btn-primary { background: linear-gradient(180deg, #238636, #196c2e) !important; border-color: rgba(240,246,252,.1) !important; color: #fff !important; }
+  .btn-primary:hover { background: linear-gradient(180deg, #2ea043, #196c2e) !important; }
+  .btn-outline { background: transparent; border-color: var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--text2); background: var(--surface2); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+  .btn-lg { padding: 9px 20px; font-size: 14px; }
+  .action-group { display: flex; gap: 6px; }
+  .action-group + .action-group { margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--border); }
+  select {
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2358a6ff' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+    padding: 8px 38px 8px 14px;
+    color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; outline: none; cursor: pointer;
+    min-width: 0; line-height: 1.4;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  select:hover { border-color: var(--text2); }
+  select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(88,166,255,.25); }
+  select option { background: #1c2333; color: var(--text); }
+  select option:hover { background: var(--primary); }
+  select optgroup { background: #1c2333; color: var(--text2); font-weight: 600; }
+  .config-bar { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); }
+  .config-bar select { padding: 5px 32px 5px 10px; font-size: 13px; border-radius: 6px; min-width: 110px; }
+  .conn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .conn-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; transition: var(--transition); }
+  .conn-box:hover { border-color: var(--border-hover); }
+  .conn-box-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; transition: var(--transition); flex-shrink: 0; }
+  .dot-red { background: var(--danger); box-shadow: 0 0 6px var(--danger-bg); }
+  .dot-green { background: var(--success); box-shadow: 0 0 6px var(--success-bg); }
+  .conn-box-hd h4 { font-size: 13px; font-weight: 600; color: var(--text2); flex-shrink: 0; }
+  .form-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .form-row:last-child { margin-bottom: 0; }
+  .form-row label { font-size: 12px; color: var(--text3); width: 44px; flex-shrink: 0; font-weight: 500; }
+  .form-row input { flex: 1; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; background: var(--bg); color: var(--text); transition: var(--transition); line-height: 1.4; }
+  .form-row input:hover { border-color: var(--border-hover); }
+  .form-row input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--primary-bg); }
+  .form-row input::placeholder { color: var(--text3); }
+  .form-row input[type="password"] { letter-spacing: 2px; }
+  .conn-status { font-size: 12px; color: var(--text3); min-height: 0; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tools-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .search-wrap { position: relative; flex: 1; min-width: 180px; }
+  .search-wrap .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+  .search-wrap input { width: 100%; padding: 7px 12px 7px 34px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; background: var(--bg); color: var(--text); transition: var(--transition); }
+  .search-wrap input:hover { border-color: var(--border-hover); }
+  .search-wrap input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--primary-bg); }
+  .search-wrap input::placeholder { color: var(--text3); }
+  .tbl-info { font-size: 12px; color: var(--text2); white-space: nowrap; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); max-height: 460px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { position: sticky; top: 0; z-index: 2; }
+  th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; background: var(--surface2); }
+  td { padding: 6px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(56,139,253,.04); }
+  .tbl-enable td { background: var(--primary-bg); }
+  .tbl-enable:hover td { background: rgba(56,139,253,.18); }
+  .ckbx { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border: 1.5px solid var(--border-hover); border-radius: 4px; cursor: pointer; position: relative; transition: var(--transition); background: var(--bg); flex-shrink: 0; }
+  .ckbx:hover { border-color: var(--primary); }
+  .ckbx:checked { background: var(--primary); border-color: var(--primary); }
+  .ckbx:checked::after { content: ''; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .ckbx:indeterminate { background: var(--primary); border-color: var(--primary); }
+  .ckbx:indeterminate::after { content: ''; position: absolute; left: 3px; top: 6px; width: 8px; height: 2px; background: #fff; border-radius: 1px; }
+  .td-input { border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; width: 100%; outline: none; background: var(--bg); color: var(--text); transition: var(--transition); line-height: 1.4; }
+  .td-input:hover { border-color: var(--border-hover); }
+  .td-input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 2px var(--primary-bg); }
+  .td-input::placeholder { color: var(--text3); }
+  .td-select { padding: 4px 30px 4px 10px; font-size: 13px; border-radius: 6px; background-position: right 8px center; background-size: 9px 5px; }
+  .td-code { font-family: "Cascadia Code", "Fira Code", Consolas, monospace; font-size: 12px; }
+  .td-code mark { background: rgba(88,166,255,.25); color: var(--primary); border-radius: 2px; padding: 0 2px; }
+  .tbl-empty td { padding: 40px 0; text-align: center; color: var(--text3); font-size: 13px; }
+  .log-box { background: #010409; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; font-family: "Cascadia Code", "Fira Code", Consolas, monospace; font-size: 13px; line-height: 1.7; height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; transition: height .3s; }
+  .log-box.busy { height: 520px; }
+  .log-box .i { color: var(--primary); }
+  .log-box .ok { color: var(--success); }
+  .log-box .err { color: var(--danger); }
+  .log-box .dim { color: var(--text3); }
+  .log-time { color: var(--text3); font-size: 11px; margin-right: 10px; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(1,4,9,.7); z-index: 100; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 440px; max-width: 92vw; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .modal-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .modal-hd h3 { font-size: 16px; font-weight: 600; }
+  .modal .form-row { margin-bottom: 12px; }
+  .modal .form-row label { width: 72px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+  @media (max-width: 768px) {
+    .conn-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; align-items: stretch; }
+    .actions { flex-wrap: wrap; }
+    .container { padding: 14px; }
+    .tools-bar { flex-direction: column; align-items: stretch; }
+    .search-wrap { min-width: auto; }
+    .panel-hd-right { flex-wrap: wrap; }
+    .log-box.busy { height: 360px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      </div>
+      <h1>数据同步</h1>
+    </div>
+    <div class="actions">
+      <div class="config-bar">
+        <select id="configSelect" onclick="event.stopPropagation()" onchange="switchConfig()"></select>
+        <button class="btn btn-outline btn-sm" onclick="showRenameConfigModal()" title="重命名配置">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="saveCfg()" title="保存配置">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="showCreateConfigModal()" title="新建配置">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="action-group" style="margin-left:6px">
+        <button class="btn btn-outline btn-lg" onclick="testConn()">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          测试连接
+        </button>
+        <button class="btn btn-primary btn-lg" id="syncBtn" onclick="startSync()">
+          <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          开始同步
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="panel" data-panel="conn">
+    <div class="panel-hd" onclick="togglePanel(this)">
+      <div class="panel-hd-left">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        <h3>数据库连接</h3>
+      </div>
+      <svg class="icon icon-sm arrow" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="panel-bd-wrap" data-panel="conn"><div class="panel-bd" id="connPanel">
+      <div class="conn-grid">
+        <div class="conn-box">
+          <div class="conn-box-hd"><span class="dot dot-red" id="srcDot"></span><h4>原库（生产）</h4><span class="conn-status" id="srcStatus"><span class="dim">— 未检测</span></span></div>
+          <div class="form-row"><label>地址</label><input id="srcHost"></div>
+          <div class="form-row"><label>端口</label><input id="srcPort" value="3306"></div>
+          <div class="form-row"><label>用户</label><input id="srcUser"></div>
+          <div class="form-row"><label>密码</label><input id="srcPass" type="password"></div>
+          <div class="form-row"><label>库名</label><input id="srcDb"></div>
+        </div>
+        <div class="conn-box">
+          <div class="conn-box-hd"><span class="dot dot-red" id="dstDot"></span><h4>目标库（本地）</h4><span class="conn-status" id="dstStatus"><span class="dim">— 未检测</span></span></div>
+          <div class="form-row"><label>地址</label><input id="dstHost"></div>
+          <div class="form-row"><label>端口</label><input id="dstPort" value="3306"></div>
+          <div class="form-row"><label>用户</label><input id="dstUser"></div>
+          <div class="form-row"><label>密码</label><input id="dstPass" type="password"></div>
+          <div class="form-row"><label>库名</label><input id="dstDb"></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="panel" data-panel="tbl">
+    <div class="panel-hd" onclick="togglePanel(this)">
+      <div class="panel-hd-left">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+        <h3>表配置</h3>
+      </div>
+      <div class="panel-hd-right">
+        <div class="config-bar">
+          <select id="tcSelect" onclick="event.stopPropagation()" onchange="switchTc()" title="切换表配置"></select>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();showRenameTcModal()" title="重命名表配置">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();showCreateTcModal()" title="新建表配置">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <span class="tbl-info" id="tblCountInfo"></span>
+        <svg class="icon icon-sm arrow" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="panel-bd-wrap" data-panel="tbl"><div class="panel-bd" id="tblPanel">
+      <div class="tools-bar">
+        <div class="search-wrap">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="searchInput" placeholder="搜索表名，空格分隔多关键词..." oninput="filterTables()">
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="showBatchTimeModal()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          批量设置时间范围
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:28px"><input class="ckbx" type="checkbox" id="masterCkbx" onchange="toggleMaster()" title="全选当前搜索结果"></th>
+              <th style="width:auto">表名</th>
+              <th style="width:60px">模式</th>
+              <th style="width:170px">时间范围</th>
+              <th style="width:180px">时间字段</th>
+            </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="panel log-panel" data-panel="log">
+    <div class="panel-hd" onclick="togglePanel(this)">
+      <div class="panel-hd-left">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <h3>运行日志 <span id="logStatus" style="font-size:11px;font-weight:400;color:var(--text3)"></span></h3>
+      </div>
+      <svg class="icon icon-sm arrow" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="panel-bd-wrap" data-panel="log"><div class="panel-bd">
+      <div class="log-box" id="logBox"><span class="dim">就绪，等待操作...</span></div>
+    </div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="createConfigModal">
+  <div class="modal">
+    <div class="modal-hd">
+      <svg class="icon" viewBox="0 0 24 24" style="color:var(--primary)"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      <h3 id="createConfigModalTitle">新建配置</h3>
+    </div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">配置包含数据库连接信息，新建后自动创建默认表配置</p>
+    <div class="form-row"><label>配置名</label><input id="createConfigNameInput" placeholder="输入配置名称"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('createConfigModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmCreateConfig()">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="batchTimeModal">
+  <div class="modal">
+    <div class="modal-hd"><svg class="icon" viewBox="0 0 24 24" style="color:var(--primary)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><h3>批量设置时间范围</h3></div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">应用到所有已启用的表（空=近7天）</p>
+    <div class="form-row"><label>时间范围</label><input id="batchTimeRange" placeholder="2026-05-31~2026-06-03"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('batchTimeModal')">取消</button>
+      <button class="btn btn-primary" onclick="applyBatchTime()">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="renameConfigModal">
+  <div class="modal">
+    <div class="modal-hd"><svg class="icon" viewBox="0 0 24 24" style="color:var(--primary)"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><h3>重命名配置</h3></div>
+    <div class="form-row"><label>新名称</label><input id="renameConfigInput" placeholder="输入新配置名称"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('renameConfigModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmRenameConfig()">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="renameTcModal">
+  <div class="modal">
+    <div class="modal-hd"><svg class="icon" viewBox="0 0 24 24" style="color:var(--primary)"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><h3>重命名表配置</h3></div>
+    <div class="form-row"><label>新名称</label><input id="renameTcInput" placeholder="输入新名称"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('renameTcModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmRenameTc()">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="createTcModal">
+  <div class="modal">
+    <div class="modal-hd"><svg class="icon" viewBox="0 0 24 24" style="color:var(--primary)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><h3>新建表配置</h3></div>
+    <div class="form-row"><label>配置名</label><input id="createTcNameInput" placeholder="输入表配置名称"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('createTcModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmCreateTc()">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let tables = {};
+let colCache = {};
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+const panelState = JSON.parse(localStorage.getItem('sync_tool_panels') || '{}');
+function applyPanelState() {
+  document.querySelectorAll('[data-panel]').forEach(p => {
+    const name = p.dataset.panel;
+    if (!name) return;
+    const wrap = p.querySelector('.panel-bd-wrap');
+    if (!wrap) return;
+    const collapsed = panelState[name] === false;
+    wrap.classList.toggle('collapsed', collapsed);
+    const arrow = p.querySelector('.arrow');
+    if (arrow) arrow.classList.toggle('open', !collapsed);
+  });
+}
+function togglePanel(el) {
+  const p = el.closest('.panel');
+  const name = p ? p.dataset.panel : null;
+  const wrap = el.nextElementSibling;
+  const arrow = el.querySelector('.arrow');
+  if (!wrap || !arrow) return;
+  const isCollapsed = !wrap.classList.contains('collapsed');
+  wrap.classList.toggle('collapsed', isCollapsed);
+  arrow.classList.toggle('open', !isCollapsed);
+  if (name) { panelState[name] = !isCollapsed; localStorage.setItem('sync_tool_panels', JSON.stringify(panelState)); }
+}
+
+function readConn() {
+  return {
+    source: { host: $('srcHost').value, port: +$('srcPort').value||3306, user: $('srcUser').value, password: $('srcPass').value, database: $('srcDb').value },
+    target: { host: $('dstHost').value, port: +$('dstPort').value||3306, user: $('dstUser').value, password: $('dstPass').value, database: $('dstDb').value }
+  };
+}
+function writeConn(cfg) {
+  if (!cfg) return;
+  const s=cfg.source||{}, t=cfg.target||{};
+  $('srcHost').value=s.host||''; $('srcPort').value=(s.port||3306)+'';
+  $('srcUser').value=s.user||''; $('srcPass').value=s.password||''; $('srcDb').value=s.database||'';
+  $('dstHost').value=t.host||''; $('dstPort').value=(t.port||3306)+'';
+  $('dstUser').value=t.user||''; $('dstPass').value=t.password||''; $('dstDb').value=t.database||'';
+}
+
+async function loadCfg() {
+  try {
+    const r = await fetch('/api/config');
+    const cfg = await r.json();
+    writeConn(cfg.config);
+    if (cfg.tableConfig && cfg.tableConfig.tables) { tables = cfg.tableConfig.tables; renderTable(); }
+    $('configSelect').dataset.current = (cfg.config && cfg.config.name) || '';
+    $('tcSelect').dataset.current = (cfg.tableConfig && cfg.tableConfig.name) || '';
+    await loadConfigList();
+    if (cfg.tableConfigNames) populateTcSelect(cfg.tableConfigNames, cfg.tableConfig && cfg.tableConfig.name);
+    else await loadTcList();
+  } catch(e) { log('加载配置失败: ' + e.message, 'err'); }
+}
+async function saveCfg() {
+  try {
+    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({config: readConn(), tableConfig: {tables}}) });
+    const d = await r.json();
+    if (!d.ok) log('保存失败', 'err');
+  } catch(e) { log('保存失败: ' + e.message, 'err'); }
+}
+let saveTimer = null;
+function autoSave() { if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(() => saveCfg(), 2000); }
+
+async function loadConfigList() {
+  try {
+    const names = await (await fetch('/api/configs')).json();
+    const sel = $('configSelect');
+    const cur = sel.dataset.current || '';
+    sel.innerHTML = names.map(n => `<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
+  } catch(e) { /* ignore */ }
+}
+async function switchConfig() {
+  const name = $('configSelect').value;
+  if (!name) return;
+  try {
+    const r = await fetch('/api/config/switch', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name}) });
+    const cfg = await r.json();
+    if (cfg.error) { log('切换失败: ' + cfg.error, 'err'); return; }
+    writeConn(cfg.config);
+    if (cfg.tableConfig && cfg.tableConfig.tables) { tables = cfg.tableConfig.tables; renderTable(); }
+    $('configSelect').dataset.current = name;
+    if (cfg.tableConfig) { $('tcSelect').dataset.current = cfg.tableConfig.name || ''; }
+    if (cfg.tableConfigNames) populateTcSelect(cfg.tableConfigNames, cfg.tableConfig && cfg.tableConfig.name);
+    $('srcDot').className = 'dot dot-red'; $('dstDot').className = 'dot dot-red';
+    $('srcStatus').innerHTML = '<span class="dim">— 未检测</span>';
+    $('dstStatus').innerHTML = '<span class="dim">— 未检测</span>';
+    log(`已切换配置: ${name}`, 'ok');
+  } catch(e) { log('切换配置异常: ' + e.message, 'err'); }
+}
+
+function populateTcSelect(names, current) {
+  $('tcSelect').innerHTML = names.map(n => `<option value="${n}" ${n===current?'selected':''}>${n}</option>`).join('');
+}
+async function loadTcList() {
+  try {
+    const cfg = $('configSelect').dataset.current || '';
+    const names = await (await fetch('/api/table-configs?config=' + encodeURIComponent(cfg))).json();
+    populateTcSelect(names, $('tcSelect').dataset.current || '');
+  } catch(e) { /* ignore */ }
+}
+async function switchTc() {
+  const name = $('tcSelect').value;
+  if (!name) return;
+  try {
+    const r = await fetch('/api/table-config/switch', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name}) });
+    const tc = await r.json();
+    if (tc.error) { log('切换失败: ' + tc.error, 'err'); return; }
+    tables = tc.tables || {}; renderTable();
+    $('tcSelect').dataset.current = name;
+    log(`已切换表配置: ${name}`, 'ok');
+  } catch(e) { log('切换表配置异常: ' + e.message, 'err'); }
+}
+
+function showRenameTcModal() {
+  $('renameTcInput').value = $('tcSelect').dataset.current || '';
+  $('renameTcModal').classList.add('show');
+  setTimeout(() => $('renameTcInput').focus(), 100);
+}
+async function confirmRenameTc() {
+  const newName = $('renameTcInput').value.trim();
+  if (!newName) { log('请输入名称', 'err'); return; }
+  closeModal('renameTcModal');
+  try {
+    const r = await fetch('/api/table-config/rename', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name: newName}) });
+    const d = await r.json();
+    if (d.error) { log('重命名失败: ' + d.error, 'err'); return; }
+    $('tcSelect').dataset.current = newName;
+    await loadTcList();
+    $('tcSelect').value = newName;
+    log(`已重命名: ${newName}`, 'ok');
+  } catch(e) { log('重命名失败: ' + e.message, 'err'); }
+}
+
+function showRenameConfigModal() {
+  $('renameConfigInput').value = $('configSelect').dataset.current || '';
+  $('renameConfigModal').classList.add('show');
+  setTimeout(() => $('renameConfigInput').focus(), 100);
+}
+async function confirmRenameConfig() {
+  const newName = $('renameConfigInput').value.trim();
+  if (!newName) { log('请输入名称', 'err'); return; }
+  closeModal('renameConfigModal');
+  try {
+    const r = await fetch('/api/config/rename', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name: newName}) });
+    const d = await r.json();
+    if (d.error) { log('重命名失败: ' + d.error, 'err'); return; }
+    $('configSelect').dataset.current = newName;
+    await loadConfigList();
+    $('configSelect').value = newName;
+    log(`已重命名: ${newName}`, 'ok');
+  } catch(e) { log('重命名失败: ' + e.message, 'err'); }
+}
+
+function showCreateTcModal() { $('createTcNameInput').value = ''; $('createTcModal').classList.add('show'); setTimeout(() => $('createTcNameInput').focus(), 100); }
+async function confirmCreateTc() {
+  const name = $('createTcNameInput').value.trim();
+  if (!name) { log('请输入名称', 'err'); return; }
+  closeModal('createTcModal');
+  try {
+    const r = await fetch('/api/table-config/create', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, copyFrom: $('tcSelect').dataset.current || ''}) });
+    const tc = await r.json();
+    if (tc.error) { log('创建失败: ' + tc.error, 'err'); return; }
+    tables = tc.tables || {}; renderTable();
+    $('tcSelect').dataset.current = name;
+    await loadTcList(); $('tcSelect').value = name;
+    log(`已创建表配置: ${name}`, 'ok');
+  } catch(e) { log('创建表配置异常: ' + e.message, 'err'); }
+}
+
+function showCreateConfigModal(title) {
+  $('createConfigModalTitle').textContent = title || '新建配置';
+  $('createConfigNameInput').value = '';
+  $('createConfigModal').classList.add('show');
+  setTimeout(() => $('createConfigNameInput').focus(), 100);
+}
+async function confirmCreateConfig() {
+  const name = $('createConfigNameInput').value.trim();
+  if (!name) { log('请输入配置名称', 'err'); return; }
+  closeModal('createConfigModal');
+  try {
+    const r = await fetch('/api/config/create', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name}) });
+    const d = await r.json();
+    if (d.error) { log('创建失败: ' + d.error, 'err'); return; }
+    await loadCfg();
+    log(`已创建配置: ${name}`, 'ok');
+  } catch(e) { log('创建配置异常: ' + e.message, 'err'); }
+}
+
+async function testConn() {
+  const conn = readConn();
+  log('正在测试连接...', 'i');
+  try {
+    const r = await fetch('/api/test-connection', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(conn) });
+    const d = await r.json();
+    const s = d.source||{}, t = d.target||{};
+    $('srcDot').className = 'dot ' + (s.ok ? 'dot-green' : 'dot-red');
+    $('dstDot').className = 'dot ' + (t.ok ? 'dot-green' : 'dot-red');
+    $('srcStatus').innerHTML = s.ok ? `<span style="color:var(--success)">已连接 — ${s.version}（${s.tables} 表）</span>` : `<span style="color:var(--danger)">连接失败：${s.error||'未知'}</span>`;
+    $('dstStatus').innerHTML = t.ok ? `<span style="color:var(--success)">已连接 — ${t.version}（${t.tables} 表）</span>` : `<span style="color:var(--danger)">连接失败：${t.error||'未知'}</span>`;
+    log(`源库: ${s.ok?'已连接':'失败'}  目标库: ${t.ok?'已连接':'失败'}`, s.ok&&t.ok?'ok':'err');
+    if (s.ok) { log('正在获取源库表列表...', 'i'); await loadTables(); autoSave(); }
+  } catch(e) { log('连接测试异常: ' + e.message, 'err'); }
+}
+
+async function loadTables() {
+  try {
+    const r = await fetch('/api/tables-all', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(readConn().source) });
+    if (!r.ok) { const e=await r.json(); throw new Error(e.error); }
+    const d = await r.json();
+    Object.assign(colCache, d.columns || {});
+    (d.tables || []).forEach(n => {
+      if (!tables[n]) tables[n] = { enable: false, mode: 'time', timeRange: '', timeField: '' };
+    });
+    // 为新表自动检测时间字段
+    Object.keys(tables).forEach(n => { if (!tables[n].timeField && colCache[n]) applyDetectedField(n, colCache[n]); });
+    renderTable();
+    log(`源库 ${d.tables.length} 张表，本地共 ${Object.keys(tables).length} 张表`, 'ok');
+  } catch(e) { log('获取失败: ' + e.message, 'err'); }
+}
+
+function filterTables() { renderTable(); }
+function matchesSearch(name, query) {
+  if (!query.trim()) return true;
+  return query.toLowerCase().split(/\s+/).filter(Boolean).some(k => name.toLowerCase().includes(k));
+}
+function toggleMaster() {
+  const checked = $('masterCkbx').checked;
+  const q = $('searchInput').value;
+  Object.keys(tables).filter(n => matchesSearch(n, q)).forEach(n => { tables[n].enable = checked; });
+  renderTable();
+}
+function renderTable() {
+  const tb = $('tblBody');
+  tb.innerHTML = '';
+  const query = $('searchInput').value;
+  const names = Object.keys(tables).filter(n => matchesSearch(n, query)).sort((a, b) => {
+    if (tables[a].enable !== tables[b].enable) return tables[a].enable ? -1 : 1;
+    return a.localeCompare(b);
+  });
+  const total = Object.keys(tables).length;
+  const enabled = Object.values(tables).filter(t => t.enable).length;
+  $('tblCountInfo').textContent = `共 ${total} · 已选 ${enabled} · 显示 ${names.length}`;
+  if (!names.length) {
+    tb.innerHTML = `<tr class=tbl-empty><td colspan=5>${total ? '无匹配表名' : '点击「测试连接」从源库加载表'}</td></tr>`;
+    return;
+  }
+  $('masterCkbx').checked = names.every(n => tables[n].enable) && names.length > 0;
+  $('masterCkbx').indeterminate = names.some(n => tables[n].enable) && !names.every(n => tables[n].enable);
+  names.forEach(n => {
+    const t = tables[n], en = escHtml(n);
+    const tr = document.createElement('tr');
+    if (t.enable) tr.className = 'tbl-enable';
+    const timeCols = colCache[n] || [];
+    const timeOptions = timeCols.filter(c => /datetime|timestamp|date/i.test(c.type) || /time|_at|_date/i.test(c.name));
+    tr.innerHTML = `<td><input class=ckbx type=checkbox ${t.enable?'checked':''} data-name="${en}"></td>
+      <td><span class=td-code>${highlightText(n, query)}</span></td>
+      <td><select class=td-select data-name="${en}" data-key=mode><option value=time ${t.mode==='time'?'selected':''}>时间范围</option><option value=all ${t.mode!=='time'?'selected':''}>全表</option></select></td>
+      <td><input class=td-input data-name="${en}" data-key=timeRange value="${escHtml(t.timeRange||'')}" placeholder="2026-05-31~2026-06-03"></td>
+      <td><select class=td-select data-name="${en}" data-key=timeField><option value="">自动检测</option>${timeOptions.map(c => '<option value="'+escHtml(c.name)+'" '+(t.timeField===c.name?'selected':'')+'>'+escHtml(c.name)+'</option>').join('')}</select></td>`;
+    tb.appendChild(tr);
+  });
+}
+function highlightText(text, query) {
+  const safe = escHtml(text);
+  if (!query.trim()) return safe;
+  let result = safe;
+  query.toLowerCase().split(/\s+/).filter(Boolean).forEach(kw => {
+    const idx = result.toLowerCase().indexOf(kw);
+    if (idx !== -1) result = result.slice(0, idx) + '<mark>' + result.slice(idx, idx+kw.length) + '</mark>' + result.slice(idx+kw.length);
+  });
+  return result;
+}
+
+function showBatchTimeModal() {
+  if (!Object.values(tables).some(t => t.enable)) { log('没有已启用的表，先勾选需要同步的表', 'err'); return; }
+  $('batchTimeModal').classList.add('show');
+  $('batchTimeRange').value = '';
+}
+function closeModal(id) { $(id).classList.remove('show'); }
+function applyBatchTime() {
+  const val = $('batchTimeRange').value.trim();
+  Object.keys(tables).forEach(n => { if (tables[n].enable) tables[n].timeRange = val; });
+  renderTable();
+  closeModal('batchTimeModal');
+  log(`已为所有启用表设置时间: ${val||'近7天'}`, 'ok');
+}
+
+async function detectTimeField(name) {
+  if (colCache[name]) { applyDetectedField(name, colCache[name]); return; }
+  try {
+    const r = await fetch('/api/table-columns', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({connection: readConn().source, table: name}) });
+    if (!r.ok) return;
+    const cols = await r.json(); colCache[name] = cols; applyDetectedField(name, cols);
+  } catch(e) { /* ignore */ }
+}
+function applyDetectedField(name, cols) {
+  const keywords = ['create_time','update_time','pub_time','display_time','createTime','updateTime','pubTime','displayTime','time','date','collect_time'];
+  const dt = cols.filter(c => c.type === 'datetime' || c.type === 'timestamp' || c.type === 'date');
+  for (const kw of keywords) { const f = dt.find(c => c.name === kw); if (f) { tables[name].timeField = f.name; return; } }
+  if (dt.length) tables[name].timeField = dt[0].name;
+}
+
+document.addEventListener('change', e => {
+  const el = e.target, name = el.dataset.name;
+  if (!name || !tables[name]) return;
+  if (el.type === 'checkbox') { tables[name].enable = el.checked; if (el.checked) detectTimeField(name); renderTable(); autoSave(); }
+  else { const key = el.dataset.key; if (key) tables[name][key] = el.value; autoSave(); }
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset && el.dataset.name && el.dataset.key && tables[el.dataset.name]) tables[el.dataset.name][el.dataset.key] = el.value;
+});
+
+let syncing = false;
+function collapsePanel(name, collapse) {
+  const wrap = document.querySelector(`.panel-bd-wrap[data-panel="${name}"]`);
+  if (wrap) wrap.classList.toggle('collapsed', collapse);
+  const arrow = document.querySelector(`.panel[data-panel="${name}"] .arrow`);
+  if (arrow) arrow.classList.toggle('open', !collapse);
+}
+async function startSync() {
+  if (syncing) return;
+  const enabled = Object.keys(tables).filter(n => tables[n].enable);
+  if (!enabled.length) { log('请先勾选需要同步的表', 'err'); return; }
+  if (!$('srcStatus').innerHTML.includes('已连接')) { log('请先测试连接', 'err'); return; }
+  syncing = true;
+  await saveCfg();
+  collapsePanel('conn', true); collapsePanel('tbl', true); collapsePanel('log', false);
+  $('logBox').classList.add('busy');
+  const btn = $('syncBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 同步中...';
+  $('logBox').innerHTML = ''; $('logStatus').textContent = `— 同步 ${enabled.length} 表`;
+  log(`开始同步 ${enabled.length} 张表...`, 'i');
+  const conn = readConn();
+  try {
+    const resp = await fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source: conn.source, target: conn.target, tables}) });
+    const reader = resp.body.getReader(), decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const d = JSON.parse(line.slice(6));
+          if (d.msg === '__DONE__') { finishedSync(); return; }
+          let t = 'i';
+          if (d.msg.startsWith('✓') || d.msg.startsWith('✅') || d.msg.startsWith('━')) t = 'ok';
+          else if (d.msg.startsWith('✗') || d.msg.startsWith('❌') || d.msg.startsWith('⚠')) t = 'err';
+          log(d.msg, t);
+        } catch(e) { /* ignore */ }
+      }
+    }
+  } catch(e) { log('同步连接中断: ' + e.message, 'err'); }
+  finishedSync();
+}
+function finishedSync() {
+  $('logBox').classList.remove('busy'); $('logStatus').textContent = '';
+  const btn = $('syncBtn'); btn.disabled = false;
+  btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 开始同步';
+  syncing = false;
+}
+
+function log(msg, type) {
+  const box = $('logBox');
+  const d = document.createElement('div');
+  d.className = type || 'i';
+  const t = new Date();
+  const ts = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`;
+  d.innerHTML = `<span class=log-time>${ts}</span>${msg}`;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+document.head.appendChild(Object.assign(document.createElement('style'), {textContent: '@keyframes spin{100%{transform:rotate(360deg)}}'}));
+applyPanelState();
+
+(async function init() {
+  try {
+    const r = await fetch('/api/config/exists');
+    const d = await r.json();
+    if (!d.exists) { showCreateConfigModal('新建数据库配置'); return; }
+  } catch(e) { /* ignore */ }
+  loadCfg();
+})();
+
+document.querySelectorAll('#connPanel input').forEach(el => el.addEventListener('change', autoSave));
+</script>
+</body>
+</html>
