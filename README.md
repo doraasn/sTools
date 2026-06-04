@@ -1,41 +1,36 @@
-# Token 看板
+# dTools
 
-多维度 LLM Token 使用量统计面板，支持 Claude Code 和 Trae 日志解析。
+开发工具集，通过浏览器 Web 界面提供多种本地开发辅助功能。
 
-## 功能
+## 模块
 
-- **每日 Token 趋势**：堆叠条形图展示每日各模型的 input/cache/output 分布，支持悬浮查看详情
-- **模型 & 项目分布**：饼图展示各模型/项目的 Token 占比
-- **模型 Token 总量**：水平条形图对比各模型总量，含缓存命中率
-- **交互筛选**：按模型/项目过滤，日期范围选择
-- **工具切换**：支持 Claude Code / Trae 多数据源
+| 模块 | 功能 |
+|------|------|
+| Token 看板 | LLM Token 用量统计：每日趋势、模型/项目分布、缓存命中率 |
+| 数据同步 | MySQL 表级数据同步：配置管理、连接测试、批量 UPSERT |
+| 日志 | 统一日志查看：实时流、搜索过滤、关键词高亮 |
 
 ## 快速开始
 
 ```bash
-node server.js
+pip install -r requirements.txt
+python app.py
 ```
 
-或双击 `start.bat`，访问 http://localhost:3456
-
-## 数据来源
-
-| 数据源 | 路径 |
-|---|---|
-| Claude Code | `~/.claude/projects/*/.jsonl` |
-| Trae (国际版) | `%APPDATA%/Trae/logs/` |
-| Trae (中国版) | `%APPDATA%/Trae CN/logs/` |
+或双击 `start.bat`，访问 http://127.0.0.1:3456
 
 ## 构建单文件 exe
 
 ```bash
-build_exe.bat
+pip install pyinstaller
+pyinstaller build.spec
 ```
 
-输出 `Token 看板.exe`，无需 Node.js 环境即可运行。
+输出 `dist/dTools.exe`，无需 Python 环境即可运行。
 
 ## 技术栈
 
-- Node.js (纯 http 模块，无框架)
-- Canvas 2D 渲染
-- SEA (Single Executable Application) 打包
+- Python + Flask
+- Chart.js (浏览器端图表渲染)
+- mysql-connector-python
+- PyInstaller 打包

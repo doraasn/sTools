@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>日志 — dTools</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0c0a09; --s: #1c1917; --s2: #292524; --b: #44403c;
+      --t: #e7e5e4; --t2: #a8a29e; --a: #f59e0b; --r: 8px;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", monospace;
+    }
+    [data-theme="light"] {
+      --bg: #fafaf9; --s: #fff; --s2: #f5f5f4; --b: #d6d3d1;
+      --t: #1c1917; --t2: #78716c; --a: #d97706;
+    }
+    body { font-family: var(--font); background: var(--bg); color: var(--t); min-height: 100vh; }
+    .app { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+    /* 头部 */
+    .hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+    }
+    .hdr h1 { font-size: 20px; font-weight: 600; }
+    .hdr-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* 搜索栏 */
+    .search-bar {
+      display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
+    }
+    .search-input {
+      flex: 1; padding: 8px 12px; font-size: 13px;
+      background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
+      color: var(--t); font-family: var(--font);
+    }
+    .search-input:focus { outline: none; border-color: var(--a); }
+    .search-input::placeholder { color: var(--t2); }
+
+    /* 统计 */
+    .stats {
+      display: flex; gap: 16px; font-size: 12px; color: var(--t2); margin-bottom: 12px;
+    }
+    .stats .count { font-weight: 600; color: var(--t); }
+
+    /* 级别筛选 */
+    .level-filters { display: flex; gap: 4px; }
+    .level-btn {
+      padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer;
+      border: 1px solid var(--b); background: var(--s); color: var(--t2);
+      font-family: var(--font); transition: all .15s;
+    }
+    .level-btn:hover { border-color: var(--t2); }
+    .level-btn.act { color: #fff; border-color: transparent; }
+    .level-btn.act[data-level="info"] { background: #3b82f6; }
+    .level-btn.act[data-level="ok"] { background: #10b981; }
+    .level-btn.act[data-level="warn"] { background: #f59e0b; }
+    .level-btn.act[data-level="err"] { background: #ef4444; }
+
+    /* 按钮 */
+    .btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 6px 12px; border: 1px solid var(--b); border-radius: var(--r);
+      background: var(--s); color: var(--t); font-size: 12px; cursor: pointer;
+      font-family: var(--font); transition: all .15s;
+    }
+    .btn:hover { background: var(--s2); border-color: var(--t2); }
+    .btn.active { background: var(--a); color: #fff; border-color: var(--a); }
+
+    /* 日志容器 */
+    .log-container {
+      background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
+      overflow: hidden;
+    }
+    .log-list {
+      height: calc(100vh - 220px); min-height: 300px;
+      overflow-y: auto; padding: 8px 0;
+      font-size: 13px; line-height: 1.6;
+    }
+
+    /* 日志条目 */
+    .log-entry {
+      display: flex; gap: 8px; padding: 3px 14px;
+      transition: background .1s;
+    }
+    .log-entry:hover { background: var(--s2); }
+    .log-time {
+      color: var(--t2); font-size: 12px; flex-shrink: 0;
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      min-width: 64px;
+    }
+    .log-level {
+      flex-shrink: 0; width: 6px; border-radius: 3px; margin-top: 7px; height: 6px;
+    }
+    .log-level.info { background: #3b82f6; }
+    .log-level.ok { background: #10b981; }
+    .log-level.warn { background: #f59e0b; }
+    .log-level.err { background: #ef4444; }
+    .log-source {
+      color: var(--a); font-size: 11px; flex-shrink: 0; min-width: 40px;
+      font-weight: 600; margin-top: 1px;
+    }
+    .log-msg { flex: 1; word-break: break-all; }
+
+    /* 高亮 */
+    mark {
+      background: rgba(245, 158, 11, 0.3); color: var(--t);
+      border-radius: 2px; padding: 0 1px;
+    }
+
+    /* 空状态 */
+    .empty {
+      text-align: center; padding: 60px 20px; color: var(--t2); font-size: 14px;
+    }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--b); border-radius: 3px; }
+
+    @media (max-width: 600px) {
+      .hdr { flex-direction: column; align-items: flex-start; }
+      .log-source { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <h1>日志</h1>
+    <div class="hdr-actions">
+      <button class="btn" id="autoScrollBtn" onclick="toggleAutoScroll()">自动滚动</button>
+      <button class="btn" id="themeBtn" onclick="toggleTheme()">切换主题</button>
+      <button class="btn" onclick="clearLogs()">清空</button>
+    </div>
+  </div>
+
+  <div class="search-bar">
+    <input class="search-input" id="searchInput" placeholder="搜索日志内容..." oninput="renderLogs()">
+    <div class="level-filters">
+      <div class="level-btn act" data-level="info" onclick="toggleLevel(this)">信息</div>
+      <div class="level-btn act" data-level="ok" onclick="toggleLevel(this)">成功</div>
+      <div class="level-btn act" data-level="warn" onclick="toggleLevel(this)">警告</div>
+      <div class="level-btn act" data-level="err" onclick="toggleLevel(this)">错误</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <span>共 <span class="count" id="totalCount">0</span> 条</span>
+    <span>匹配 <span class="count" id="matchCount">0</span> 条</span>
+  </div>
+
+  <div class="log-container">
+    <div class="log-list" id="logList">
+      <div class="empty">暂无日志，等待操作...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let logs = [];
+let autoScroll = true;
+let activeLevels = new Set(['info', 'ok', 'warn', 'err']);
+let lastTs = 0;
+let pollTimer = null;
+
+/* 主题 */
+function initTheme() {
+  try {
+    const saved = localStorage.getItem('csd-theme');
+    if (saved) document.documentElement.setAttribute('data-theme', saved);
+  } catch {}
+}
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('csd-theme', next); } catch {}
+}
+
+/* 自动滚动 */
+function toggleAutoScroll() {
+  autoScroll = !autoScroll;
+  $('autoScrollBtn').classList.toggle('active', autoScroll);
+}
+
+/* 级别筛选 */
+function toggleLevel(el) {
+  const level = el.dataset.level;
+  if (activeLevels.has(level)) {
+    activeLevels.delete(level);
+    el.classList.remove('act');
+  } else {
+    activeLevels.add(level);
+    el.classList.add('act');
+  }
+  renderLogs();
+}
+
+/* 搜索高亮 */
+function highlightText(text, query) {
+  if (!query) return escHtml(text);
+  const escaped = escHtml(text);
+  const lower = escaped.toLowerCase();
+  const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!keywords.length) return escaped;
+
+  const ranges = [];
+  keywords.forEach(kw => {
+    let start = 0;
+    while (true) {
+      const idx = lower.indexOf(kw, start);
+      if (idx < 0) break;
+      ranges.push([idx, idx + kw.length]);
+      start = idx + 1;
+    }
+  });
+
+  if (!ranges.length) return escaped;
+
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [ranges[0]];
+  for (let i = 1; i < ranges.length; i++) {
+    const last = merged[merged.length - 1];
+    if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
+    else merged.push(ranges[i]);
+  }
+
+  let result = '', pos = 0;
+  merged.forEach(([s, e]) => {
+    result += escaped.substring(pos, s) + '<mark>' + escaped.substring(s, e) + '</mark>';
+    pos = e;
+  });
+  result += escaped.substring(pos);
+  return result;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* 渲染日志 */
+function renderLogs() {
+  const query = $('searchInput').value.trim();
+  const list = $('logList');
+
+  const filtered = logs.filter(e => {
+    if (!activeLevels.has(e.level)) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      const text = (e.msg + ' ' + e.source).toLowerCase();
+      if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
+    }
+    return true;
+  });
+
+  $('totalCount').textContent = logs.length;
+  $('matchCount').textContent = filtered.length;
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">${logs.length ? '无匹配日志' : '暂无日志，等待操作...'}</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(e => {
+    const msg = query ? highlightText(e.msg, query) : escHtml(e.msg);
+    return `<div class="log-entry">
+      <span class="log-time">${escHtml(e.time)}</span>
+      <span class="log-level ${e.level}"></span>
+      <span class="log-source">${escHtml(e.source)}</span>
+      <span class="log-msg">${msg}</span>
+    </div>`;
+  }).join('');
+
+  if (autoScroll) {
+    list.scrollTop = list.scrollHeight;
+  }
+}
+
+/* 增量轮询 */
+async function pollLogs() {
+  try {
+    const r = await fetch(`/api/logs/since?ts=${lastTs}`);
+    const newLogs = await r.json();
+    if (newLogs.length) {
+      logs.push(...newLogs);
+      lastTs = newLogs[newLogs.length - 1].ts;
+      renderLogs();
+    }
+  } catch {}
+}
+
+/* 清空日志 */
+async function clearLogs() {
+  try {
+    await fetch('/api/logs/clear', { method: 'POST' });
+    logs = [];
+    lastTs = 0;
+    renderLogs();
+  } catch {}
+}
+
+/* 初始化 */
+async function init() {
+  initTheme();
+  $('autoScrollBtn').classList.add('active');
+
+  // 首次加载全部日志
+  try {
+    const r = await fetch('/api/logs');
+    logs = await r.json();
+    if (logs.length) {
+      lastTs = logs[logs.length - 1].ts;
+    }
+    renderLogs();
+  } catch {}
+
+  // 每 2 秒增量轮询
+  pollTimer = setInterval(pollLogs, 2000);
+}
+
+init();
+</script>
+</body>
+</html>

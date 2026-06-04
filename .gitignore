@@ -1,16 +1,13 @@
-node_modules/
 *.exe
-sea-prep.blob
 config.json
+SPEC.secrets.md
 .DS_Store
 *.log
-# Debug screenshots
-daily-chart*.png
-screenshot*.png
-screenshot*.jpg
-test-shot*.png
-cache-rate*.png
-# Debug text dumps
-dom*.txt
-console.txt
-edge-errors.txt
+__pycache__/
+*.pyc
+*.pyo
+dist/
+build/
+*.spec.bak
+.venv/
+venv/

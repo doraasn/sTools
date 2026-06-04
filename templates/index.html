@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dTools — 开发工具集</title>
+  <style>
+    :root {
+      --bg: #0a0a0f; --s: #13131a; --s2: #1c1c28;
+      --b: #2a2a3a; --t: #e8e8ed; --t2: #88889a;
+      --t3: #5c5c70; --a: #06b6d4; --r: 10px;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font); background: var(--bg); color: var(--t);
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+
+    /* 头部 */
+    .header { text-align: center; margin-bottom: 40px; }
+    .header h1 {
+      font-size: 28px; font-weight: 600; letter-spacing: -0.5px; color: var(--t);
+    }
+    .subtitle { color: var(--t3); font-size: 13px; margin-top: 4px; }
+
+    /* 卡片网格 */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px; max-width: 560px; width: 100%;
+    }
+
+    .card {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--s); border: 1px solid var(--b);
+      border-radius: var(--r); padding: 16px 18px;
+      text-decoration: none; color: var(--t);
+      transition: border-color .15s, background .15s;
+    }
+    .card:hover {
+      border-color: var(--t3);
+      background: var(--s2);
+    }
+
+    .ci {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--accent);
+    }
+    .card-body { flex: 1; min-width: 0; }
+    .ct { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .cd { font-size: 12px; color: var(--t2); line-height: 1.4; }
+
+    .card-arrow {
+      color: var(--t3); flex-shrink: 0; opacity: 0;
+      transition: opacity .15s, transform .15s; transform: translateX(-4px);
+    }
+    .card:hover .card-arrow { opacity: 1; transform: translateX(0); }
+
+    /* 底部 */
+    .footer {
+      margin-top: 40px; text-align: center; color: var(--t3);
+      font-size: 11px;
+    }
+    .footer a { color: var(--t2); text-decoration: none; }
+    .footer a:hover { color: var(--a); }
+
+    @media (max-width: 560px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>dTools</h1>
+    <div class="subtitle">开发工具集</div>
+  </div>
+
+  <div class="grid">
+    {% for mod in modules %}
+    <a class="card" href="/{{ mod.name }}"
+       style="--accent: {{ mod.accent|default('#a855f7') }}">
+      <div class="ci">{{ mod.icon|default('·') }}</div>
+      <div class="card-body">
+        <div class="ct">{{ mod.label|default(mod.name) }}</div>
+        <div class="cd">{{ mod.description|default('') }}</div>
+      </div>
+      <svg class="card-arrow" width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="footer">
+    <a href="https://github.com/doraasn/dTools" target="_blank">GitHub</a>
+    · {{ version }}
+    · {{ host }}:{{ port }}
+  </div>
+</body>
+</html>

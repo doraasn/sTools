@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>数据同步 — dTools</title>
+  <style>
+    /* ===== 重置 ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ===== GitHub 暗色主题 ===== */
+    :root {
+      --bg: #0d1117; --surface: #161b22; --surface2: #1c2333;
+      --border: #30363d; --border-hover: #484f58; --border-focus: #58a6ff;
+      --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+      --primary: #58a6ff; --primary-hover: #79c0ff; --primary-bg: rgba(56,139,253,.12);
+      --success: #3fb950; --success-bg: rgba(63,185,80,.12);
+      --danger: #f85149; --danger-bg: rgba(248,81,73,.12);
+      --radius: 8px; --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    }
+
+    body {
+      font-family: var(--font); background: var(--bg); color: var(--text);
+      font-size: 14px; line-height: 1.5;
+    }
+
+    /* ===== 滚动条 ===== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ===== 容器 ===== */
+    .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+    /* ===== 头部 ===== */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 36px; height: 36px; border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--primary), #bc8cff);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: #fff;
+    }
+    .header h1 { font-size: 20px; font-weight: 600; }
+    .header .subtitle { font-size: 12px; color: var(--text2); }
+    .actions { display: flex; gap: 8px; }
+
+    /* ===== 配置栏 ===== */
+    .config-bar {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 2px 4px;
+    }
+    .config-bar select {
+      background: transparent; border: none; color: var(--text);
+      font-size: 13px; padding: 4px 8px; cursor: pointer; font-family: var(--font);
+    }
+    .config-bar select:focus { outline: none; }
+
+    /* ===== 按钮 ===== */
+    .btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 7px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); color: var(--text); font-size: 13px;
+      font-weight: 500; cursor: pointer; font-family: var(--font);
+      transition: all .15s;
+    }
+    .btn:hover { border-color: var(--border-hover); background: var(--surface2); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn-primary {
+      background: linear-gradient(180deg, #238636, #196c2e);
+      border-color: rgba(240,246,252,.1); color: #fff;
+    }
+    .btn-primary:hover { background: linear-gradient(180deg, #2ea043, #238636); }
+    .btn-outline { background: transparent; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+
+    .action-group { display: flex; gap: 6px; }
+    .action-group + .action-group { border-left: 1px solid var(--border); padding-left: 6px; }
+
+    /* ===== 面板 ===== */
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); margin-bottom: 14px;
+      overflow: hidden; box-shadow: var(--shadow-sm);
+    }
+    .panel-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 18px; cursor: pointer; transition: background .15s;
+    }
+    .panel-hd:hover { background: var(--surface2); }
+    .panel-hd-left { display: flex; align-items: center; gap: 10px; }
+    .panel-hd-left h3 { font-size: 14px; font-weight: 600; }
+    .panel-hd-left .icon { color: var(--primary); width: 18px; height: 18px; }
+    .panel-hd-right { display: flex; align-items: center; gap: 10px; }
+    .arrow {
+      color: var(--text3); transition: transform .25s;
+      width: 16px; height: 16px;
+    }
+    .arrow.open { transform: rotate(180deg); }
+    .panel-bd-wrap {
+      max-height: 600px; overflow: hidden;
+      transition: max-height .35s ease, opacity .2s ease; opacity: 1;
+    }
+    .panel-bd-wrap.collapsed { max-height: 0; opacity: 0; }
+    .panel-bd { padding: 0 18px 16px; }
+    .panel.log-panel .panel-bd-wrap { max-height: none; }
+
+    /* ===== 连接网格 ===== */
+    .conn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .conn-box {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px;
+    }
+    .conn-box-hd {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    }
+    .conn-box-hd .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .dot-red { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+    .dot-green { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .conn-box-hd .label { font-weight: 600; font-size: 13px; }
+    .conn-status { font-size: 12px; color: var(--text3); margin-left: auto; }
+
+    /* ===== 表单 ===== */
+    .form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .form-row label { font-size: 12px; color: var(--text3); min-width: 44px; }
+    .form-row input {
+      flex: 1; padding: 7px 12px; font-size: 13px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+      font-family: var(--font);
+    }
+    .form-row input:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 2px rgba(88,166,255,.2); }
+
+    /* ===== 工具栏 ===== */
+    .tools-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .search-wrap { flex: 1; min-width: 180px; position: relative; }
+    .search-wrap input {
+      width: 100%; padding: 7px 12px 7px 32px; font-size: 13px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text); font-family: var(--font);
+    }
+    .search-wrap input:focus { outline: none; border-color: var(--border-focus); }
+    .search-wrap .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text3); }
+    .tbl-info { font-size: 12px; color: var(--text3); margin-left: auto; }
+
+    /* ===== 表格 ===== */
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); max-height: 460px; overflow-y: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    thead { position: sticky; top: 0; z-index: 2; }
+    th {
+      text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+      padding: 8px 12px; background: var(--surface2); color: var(--text2);
+      border-bottom: 1px solid var(--border); font-weight: 600;
+    }
+    td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+    tr:hover { background: rgba(88,166,255,.04); }
+    tr.tbl-enable { background: var(--primary-bg); }
+
+    /* ===== 复选框 ===== */
+    .ckbx {
+      width: 16px; height: 16px; border: 1px solid var(--border);
+      border-radius: 4px; background: var(--bg); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all .15s; accent-color: var(--primary);
+    }
+    .ckbx:checked { background: var(--primary); border-color: var(--primary); }
+
+    /* ===== 表格内输入 ===== */
+    .td-input {
+      padding: 4px 8px; font-size: 12px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+      font-family: var(--font); width: 100%;
+    }
+    .td-input:focus { outline: none; border-color: var(--border-focus); }
+    .td-select {
+      padding: 4px 8px; font-size: 12px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+      font-family: var(--font); cursor: pointer;
+    }
+    .td-code { font-family: "Cascadia Code", "Fira Code", Consolas, monospace; font-size: 12px; }
+    td mark { background: rgba(88,166,255,.2); color: var(--primary); border-radius: 2px; }
+
+    .tbl-empty { text-align: center; padding: 40px 12px; color: var(--text3); }
+
+    /* ===== 日志 ===== */
+    .log-box {
+      background: #010409; font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 13px; line-height: 1.7; height: 300px; overflow-y: auto;
+      padding: 12px; border-radius: var(--radius); white-space: pre-wrap;
+      transition: height .3s;
+    }
+    .log-box.busy { height: 520px; }
+    .log-box .i { color: var(--primary); }
+    .log-box .ok { color: var(--success); }
+    .log-box .err { color: var(--danger); }
+    .log-box .dim { color: var(--text3); }
+    .log-time { font-size: 11px; color: var(--text3); margin-right: 8px; }
+
+    /* ===== 弹窗 ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(1,4,9,.7);
+      z-index: 100; display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px; max-width: 440px;
+      width: 92vw; box-shadow: 0 16px 48px rgba(0,0,0,.4);
+    }
+    .modal h3 { font-size: 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .modal .form-row { margin-bottom: 12px; }
+    .modal .form-row input { width: 100%; }
+    .modal .desc { font-size: 12px; color: var(--text3); margin-bottom: 12px; }
+    .modal .mb { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 768px) {
+      .conn-grid { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+      .tools-bar { flex-wrap: wrap; }
+      .search-wrap { min-width: auto; }
+      .log-box.busy { height: 360px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- 头部 -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">⇄</div>
+      <div>
+        <h1>数据同步</h1>
+        <div class="subtitle">MySQL 表级数据同步工具</div>
+      </div>
+    </div>
+    <div class="actions">
+      <div class="config-bar">
+        <select id="configSelect" onchange="switchConfig()"></select>
+        <button class="btn btn-sm" onclick="showRenameConfigModal()" title="重命名配置">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="btn btn-sm" onclick="showCreateConfigModal()" title="新建配置">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="action-group">
+        <button class="btn btn-outline" onclick="testConn()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          测试连接
+        </button>
+        <button class="btn btn-primary" id="syncBtn" onclick="startSync()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          开始同步
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 面板 1: 数据库连接 -->
+  <div class="panel" data-panel="conn" id="connPanel">
+    <div class="panel-hd" onclick="togglePanel(this)">
+      <div class="panel-hd-left">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <h3>数据库连接</h3>
+      </div>
+      <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="panel-bd-wrap">
+      <div class="panel-bd">
+        <div class="conn-grid">
+          <!-- 源库 -->
+          <div class="conn-box">
+            <div class="conn-box-hd">
+              <div class="dot dot-red" id="srcDot"></div>
+              <span class="label">原库 / 生产</span>
+              <span class="conn-status" id="srcStatus">未检测</span>
+            </div>
+            <div class="form-row"><label>主机</label><input id="srcHost" placeholder="192.168.1.100"></div>
+            <div class="form-row"><label>端口</label><input id="srcPort" type="number" value="3306"></div>
+            <div class="form-row"><label>用户</label><input id="srcUser" placeholder="root"></div>
+            <div class="form-row"><label>密码</label><input id="srcPass" type="password" placeholder="密码"></div>
+            <div class="form-row"><label>库名</label><input id="srcDb" placeholder="gas_balance"></div>
+          </div>
+          <!-- 目标库 -->
+          <div class="conn-box">
+            <div class="conn-box-hd">
+              <div class="dot dot-red" id="dstDot"></div>
+              <span class="label">目标库 / 本地</span>
+              <span class="conn-status" id="dstStatus">未检测</span>
+            </div>
+            <div class="form-row"><label>主机</label><input id="dstHost" placeholder="127.0.0.1"></div>
+            <div class="form-row"><label>端口</label><input id="dstPort" type="number" value="3306"></div>
+            <div class="form-row"><label>用户</label><input id="dstUser" placeholder="root"></div>
+            <div class="form-row"><label>密码</label><input id="dstPass" type="password" placeholder="密码"></div>
+            <div class="form-row"><label>库名</label><input id="dstDb" placeholder="gas_balance_local"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 面板 2: 表配置 -->
+  <div class="panel" data-panel="tbl">
+    <div class="panel-hd" onclick="togglePanel(this)">
+      <div class="panel-hd-left">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <h3>表配置</h3>
+      </div>
+      <div class="panel-hd-right">
+        <select id="tcSelect" onchange="switchTc()" onclick="event.stopPropagation()"></select>
+        <button class="btn btn-sm" onclick="event.stopPropagation();showRenameTcModal()" title="重命名表配置">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();showCreateTcModal()" title="新建表配置">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <span class="tbl-info" id="tblCountInfo"></span>
+        <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="panel-bd-wrap">
+      <div class="panel-bd">
+        <div class="tools-bar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="searchInput" placeholder="搜索表名..." oninput="filterTables()">
+          </div>
+          <button class="btn btn-sm" onclick="showBatchTimeModal()">批量设置时间范围</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox" class="ckbx" id="masterCkbx" onchange="toggleMaster()"></th>
+                <th>表名</th>
+                <th>模式</th>
+                <th>时间范围</th>
+                <th>时间字段</th>
+              </tr>
+            </thead>
+            <tbody id="tblBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 面板 3: 运行日志 -->
+  <div class="panel log-panel" data-panel="log">
+    <div class="panel-hd" onclick="togglePanel(this)">
+      <div class="panel-hd-left">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <h3>运行日志</h3>
+        <span id="logStatus" style="font-size:12px;color:var(--text3)"></span>
+      </div>
+      <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="panel-bd-wrap">
+      <div class="panel-bd">
+        <div class="log-box" id="logBox">
+          <div class="dim">就绪，等待操作...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗: 新建配置 -->
+<div class="modal-overlay" id="createConfigModal">
+  <div class="modal">
+    <h3 id="createConfigModalTitle">新建配置</h3>
+    <div class="desc">创建一个新的数据库同步配置</div>
+    <div class="form-row"><input id="createConfigNameInput" placeholder="配置名称"></div>
+    <div class="mb">
+      <button class="btn" onclick="closeModal('createConfigModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmCreateConfig()">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗: 批量设置时间 -->
+<div class="modal-overlay" id="batchTimeModal">
+  <div class="modal">
+    <h3>批量设置时间范围</h3>
+    <div class="desc">将时间范围应用到所有已启用的表（格式：2026-05-31~2026-06-03）</div>
+    <div class="form-row"><input id="batchTimeRange" placeholder="2026-05-31~2026-06-03"></div>
+    <div class="mb">
+      <button class="btn" onclick="closeModal('batchTimeModal')">取消</button>
+      <button class="btn btn-primary" onclick="applyBatchTime()">应用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗: 重命名配置 -->
+<div class="modal-overlay" id="renameConfigModal">
+  <div class="modal">
+    <h3>重命名配置</h3>
+    <div class="form-row"><input id="renameConfigInput" placeholder="新名称"></div>
+    <div class="mb">
+      <button class="btn" onclick="closeModal('renameConfigModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmRenameConfig()">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗: 重命名表配置 -->
+<div class="modal-overlay" id="renameTcModal">
+  <div class="modal">
+    <h3>重命名表配置</h3>
+    <div class="form-row"><input id="renameTcInput" placeholder="新名称"></div>
+    <div class="mb">
+      <button class="btn" onclick="closeModal('renameTcModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmRenameTc()">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗: 新建表配置 -->
+<div class="modal-overlay" id="createTcModal">
+  <div class="modal">
+    <h3>新建表配置</h3>
+    <div class="form-row"><input id="createTcNameInput" placeholder="表配置名称"></div>
+    <div class="mb">
+      <button class="btn" onclick="closeModal('createTcModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmCreateTc()">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 全局状态 ===== */
+const $ = id => document.getElementById(id);
+let tables = {}, colCache = {};
+let saveTimer = null, syncing = false;
+let panelState = tryParse(localStorage.getItem('sync_tool_panels'), {});
+
+function tryParse(s, d) { try { return JSON.parse(s) || d; } catch { return d; } }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ===== 面板折叠 ===== */
+function applyPanelState() {
+  document.querySelectorAll('[data-panel]').forEach(el => {
+    const name = el.dataset.panel;
+    const wrap = el.querySelector('.panel-bd-wrap');
+    const arrow = el.querySelector('.arrow');
+    if (panelState[name] === false && wrap) {
+      wrap.classList.add('collapsed');
+      if (arrow) arrow.classList.remove('open');
+    }
+  });
+}
+
+function togglePanel(headerEl) {
+  const panel = headerEl.closest('.panel');
+  const name = panel.dataset.panel;
+  const wrap = panel.querySelector('.panel-bd-wrap');
+  const arrow = panel.querySelector('.arrow');
+  if (!wrap) return;
+  wrap.classList.toggle('collapsed');
+  if (arrow) arrow.classList.toggle('open');
+  panelState[name] = !wrap.classList.contains('collapsed');
+  try { localStorage.setItem('sync_tool_panels', JSON.stringify(panelState)); } catch {}
+}
+
+function collapsePanel(name, collapse) {
+  const panel = document.querySelector(`[data-panel="${name}"]`);
+  if (!panel) return;
+  const wrap = panel.querySelector('.panel-bd-wrap');
+  const arrow = panel.querySelector('.arrow');
+  if (collapse) { wrap?.classList.add('collapsed'); arrow?.classList.remove('open'); }
+  else { wrap?.classList.remove('collapsed'); arrow?.classList.add('open'); }
+  panelState[name] = !collapse;
+  try { localStorage.setItem('sync_tool_panels', JSON.stringify(panelState)); } catch {}
+}
+
+/* ===== 连接表单 ===== */
+function readConn() {
+  return {
+    source: {
+      host: $('srcHost').value.trim(), port: parseInt($('srcPort').value) || 3306,
+      user: $('srcUser').value.trim(), password: $('srcPass').value, database: $('srcDb').value.trim(),
+    },
+    target: {
+      host: $('dstHost').value.trim(), port: parseInt($('dstPort').value) || 3306,
+      user: $('dstUser').value.trim(), password: $('dstPass').value, database: $('dstDb').value.trim(),
+    },
+  };
+}
+
+function writeConn(cfg) {
+  const s = cfg.source || {}, t = cfg.target || {};
+  $('srcHost').value = s.host || ''; $('srcPort').value = s.port || 3306;
+  $('srcUser').value = s.user || ''; $('srcPass').value = s.password || '';
+  $('srcDb').value = s.database || '';
+  $('dstHost').value = t.host || ''; $('dstPort').value = t.port || 3306;
+  $('dstUser').value = t.user || ''; $('dstPass').value = t.password || '';
+  $('dstDb').value = t.database || '';
+}
+
+/* ===== 配置加载/保存 ===== */
+async function loadCfg() {
+  try {
+    const r = await fetch('/api/sync/config');
+    const cfg = await r.json();
+    if (cfg.error) { log('加载配置失败: ' + cfg.error, 'err'); return; }
+    writeConn(cfg.config);
+    if (cfg.tableConfig?.tables) { tables = cfg.tableConfig.tables; renderTable(); }
+    $('configSelect').dataset.current = cfg.config.name;
+    await loadConfigList();
+    if (cfg.tableConfigNames) populateTcSelect(cfg.tableConfigNames, cfg.tableConfig.name);
+    else await loadTcList();
+  } catch (e) { log('加载配置失败: ' + e.message, 'err'); }
+}
+
+async function saveCfg() {
+  try {
+    await fetch('/api/sync/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config: readConn(), tableConfig: { tables } }),
+    });
+  } catch (e) { log('保存失败: ' + e.message, 'err'); }
+}
+
+function autoSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveCfg, 2000);
+}
+
+/* ===== 配置列表 ===== */
+async function loadConfigList() {
+  try {
+    const names = await (await fetch('/api/sync/configs')).json();
+    const current = $('configSelect').dataset.current || '';
+    $('configSelect').innerHTML = names.map(n =>
+      `<option value="${escHtml(n)}" ${n === current ? 'selected' : ''}>${escHtml(n)}</option>`
+    ).join('');
+  } catch {}
+}
+
+async function switchConfig() {
+  const name = $('configSelect').value;
+  colCache = {};  // 清除旧库的列缓存
+  try {
+    const r = await fetch('/api/sync/config/switch', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const cfg = await r.json();
+    if (cfg.error) { log('切换失败: ' + cfg.error, 'err'); return; }
+    writeConn(cfg.config);
+    if (cfg.tableConfig?.tables) { tables = cfg.tableConfig.tables; renderTable(); }
+    $('configSelect').dataset.current = cfg.config.name;
+    if (cfg.tableConfigNames) populateTcSelect(cfg.tableConfigNames, cfg.tableConfig.name);
+    resetDots();
+    log('已切换配置: ' + name, 'i');
+  } catch (e) { log('切换失败: ' + e.message, 'err'); }
+}
+
+function populateTcSelect(names, current) {
+  $('tcSelect').innerHTML = names.map(n =>
+    `<option value="${escHtml(n)}" ${n === current ? 'selected' : ''}>${escHtml(n)}</option>`
+  ).join('');
+}
+
+async function loadTcList() {
+  try {
+    const names = await (await fetch('/api/sync/table-configs')).json();
+    const current = $('tcSelect').value;
+    populateTcSelect(names, current);
+  } catch {}
+}
+
+async function switchTc() {
+  const name = $('tcSelect').value;
+  try {
+    const r = await fetch('/api/sync/table-config/switch', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const d = await r.json();
+    if (d.error) { log('切换表配置失败: ' + d.error, 'err'); return; }
+    tables = d.tables || {};
+    renderTable();
+    log('已切换表配置: ' + name, 'i');
+  } catch (e) { log('切换失败: ' + e.message, 'err'); }
+}
+
+function resetDots() {
+  $('srcDot').className = 'dot dot-red'; $('dstDot').className = 'dot dot-red';
+  $('srcStatus').textContent = '未检测'; $('dstStatus').textContent = '未检测';
+}
+
+/* ===== 弹窗函数 ===== */
+function showRenameTcModal() {
+  $('renameTcInput').value = $('tcSelect').value;
+  $('renameTcModal').classList.add('show');
+  setTimeout(() => $('renameTcInput').focus(), 100);
+}
+
+async function confirmRenameTc() {
+  const name = $('renameTcInput').value.trim();
+  if (!name) return;
+  try {
+    const r = await fetch('/api/sync/table-config/rename', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const d = await r.json();
+    if (d.error) { log('重命名失败: ' + d.error, 'err'); return; }
+    $('tcSelect').dataset.current = name;
+    await loadTcList();
+    $('tcSelect').value = name;
+    closeModal('renameTcModal');
+    log('已重命名表配置: ' + name, 'ok');
+  } catch (e) { log('重命名失败: ' + e.message, 'err'); }
+}
+
+function showRenameConfigModal() {
+  $('renameConfigInput').value = $('configSelect').dataset.current || '';
+  $('renameConfigModal').classList.add('show');
+  setTimeout(() => $('renameConfigInput').focus(), 100);
+}
+
+async function confirmRenameConfig() {
+  const name = $('renameConfigInput').value.trim();
+  if (!name) return;
+  try {
+    const r = await fetch('/api/sync/config/rename', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const d = await r.json();
+    if (d.error) { log('重命名失败: ' + d.error, 'err'); return; }
+    $('configSelect').dataset.current = name;
+    await loadConfigList();
+    $('configSelect').value = name;
+    closeModal('renameConfigModal');
+    log('已重命名配置: ' + name, 'ok');
+  } catch (e) { log('重命名失败: ' + e.message, 'err'); }
+}
+
+function showCreateTcModal() {
+  $('createTcNameInput').value = '';
+  $('createTcModal').classList.add('show');
+  setTimeout(() => $('createTcNameInput').focus(), 100);
+}
+
+async function confirmCreateTc() {
+  const name = $('createTcNameInput').value.trim();
+  if (!name) return;
+  try {
+    const r = await fetch('/api/sync/table-config/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, copyFrom: $('tcSelect').value }),
+    });
+    const d = await r.json();
+    if (d.error) { log('创建失败: ' + d.error, 'err'); return; }
+    tables = d.tables || {};
+    renderTable();
+    await loadTcList();
+    $('tcSelect').value = name;
+    closeModal('createTcModal');
+    log('已创建表配置: ' + name, 'ok');
+  } catch (e) { log('创建失败: ' + e.message, 'err'); }
+}
+
+function showCreateConfigModal(title) {
+  if (title) $('createConfigModalTitle').textContent = title;
+  else $('createConfigModalTitle').textContent = '新建配置';
+  $('createConfigNameInput').value = '';
+  $('createConfigModal').classList.add('show');
+  setTimeout(() => $('createConfigNameInput').focus(), 100);
+}
+
+async function confirmCreateConfig() {
+  const name = $('createConfigNameInput').value.trim();
+  if (!name) return;
+  try {
+    const r = await fetch('/api/sync/config/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const d = await r.json();
+    if (d.error) { log('创建失败: ' + d.error, 'err'); return; }
+    closeModal('createConfigModal');
+    await loadCfg();
+    log('已创建配置: ' + name, 'ok');
+  } catch (e) { log('创建失败: ' + e.message, 'err'); }
+}
+
+function closeModal(id) { $(id).classList.remove('show'); }
+
+/* ===== 测试连接 ===== */
+async function testConn() {
+  const conn = readConn();
+  log('正在测试连接...', 'i');
+  try {
+    const r = await fetch('/api/sync/test-connection', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(conn),
+    });
+    const d = await r.json();
+    for (const side of ['source', 'target']) {
+      const info = d[side];
+      const dot = side === 'source' ? $('srcDot') : $('dstDot');
+      const status = side === 'source' ? $('srcStatus') : $('dstStatus');
+      if (info.ok) {
+        dot.className = 'dot dot-green';
+        status.textContent = `${info.version} · ${info.tables} 表`;
+        log(`✓ ${side === 'source' ? '源库' : '目标库'}连接成功: ${info.version}`, 'ok');
+      } else {
+        dot.className = 'dot dot-red';
+        status.textContent = info.error || '连接失败';
+        log(`✗ ${side === 'source' ? '源库' : '目标库'}连接失败: ${info.error}`, 'err');
+      }
+    }
+    // 源库连接成功则加载表
+    if (d.source.ok) {
+      await loadTables();
+      autoSave();
+    }
+  } catch (e) { log('测试连接异常: ' + e.message, 'err'); }
+}
+
+/* ===== 表加载 ===== */
+async function loadTables() {
+  const conn = readConn().source;
+  try {
+    const r = await fetch('/api/sync/tables-all', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(conn),
+    });
+    const d = await r.json();
+    if (d.error) { log('加载表失败: ' + d.error, 'err'); return; }
+    Object.assign(colCache, d.columns || {});
+    // 为新表添加默认配置
+    for (const tbl of (d.tables || [])) {
+      if (!tables[tbl]) tables[tbl] = { enable: false, mode: 'time', timeRange: '', timeField: '' };
+      if (!tables[tbl].timeField) applyDetectedField(tbl, colCache[tbl]);
+    }
+    renderTable();
+    log(`已加载 ${d.tables.length} 张表`, 'ok');
+  } catch (e) { log('加载表失败: ' + e.message, 'err'); }
+}
+
+/* ===== 搜索过滤 ===== */
+function matchesSearch(name, query) {
+  if (!query) return true;
+  return query.toLowerCase().split(/\s+/).some(k => name.toLowerCase().includes(k));
+}
+
+function filterTables() { renderTable(); }
+
+function toggleMaster() {
+  const checked = $('masterCkbx').checked;
+  const query = $('searchInput').value.trim();
+  Object.keys(tables).forEach(name => {
+    if (matchesSearch(name, query)) tables[name].enable = checked;
+  });
+  renderTable();
+  autoSave();
+}
+
+/* ===== 时间字段检测 ===== */
+const TIME_KEYWORDS = ['create_time', 'update_time', 'pub_time', 'display_time',
+                       'createTime', 'updateTime', 'pubTime', 'displayTime',
+                       'time', 'date', 'collect_time'];
+const DATETIME_TYPES = ['datetime', 'timestamp', 'date'];
+
+function applyDetectedField(name, cols) {
+  if (!cols || !tables[name]) return;
+  const dtCols = cols.filter(c => DATETIME_TYPES.includes(c.type));
+  for (const kw of TIME_KEYWORDS) {
+    const match = dtCols.find(c => c.name === kw);
+    if (match) { tables[name].timeField = kw; return; }
+  }
+  if (dtCols.length) tables[name].timeField = dtCols[0].name;
+}
+
+async function detectTimeField(name) {
+  if (colCache[name]) { applyDetectedField(name, colCache[name]); renderTable(); return; }
+  const conn = readConn().source;
+  try {
+    const r = await fetch('/api/sync/table-columns', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection: conn, table: name }),
+    });
+    const cols = await r.json();
+    colCache[name] = cols;
+    applyDetectedField(name, cols);
+    renderTable();
+  } catch {}
+}
+
+/* ===== 表格渲染 ===== */
+function renderTable() {
+  const tbody = $('tblBody');
+  const query = $('searchInput').value.trim();
+  const entries = Object.entries(tables)
+    .filter(([name]) => matchesSearch(name, query))
+    .sort((a, b) => {
+      if (a[1].enable !== b[1].enable) return b[1].enable - a[1].enable;
+      return a[0].localeCompare(b[0]);
+    });
+
+  // 更新统计
+  const total = Object.keys(tables).length;
+  const enabled = Object.values(tables).filter(t => t.enable).length;
+  $('tblCountInfo').textContent = `${total} 表 · ${enabled} 启用`;
+
+  if (!entries.length) {
+    const msg = total ? '无匹配表名' : '点击「测试连接」从源库加载表';
+    tbody.innerHTML = `<tr><td colspan="5" class="tbl-empty">${msg}</td></tr>`;
+    return;
+  }
+
+  // 更新全选框状态
+  const allChecked = entries.every(([, t]) => t.enable);
+  const someChecked = entries.some(([, t]) => t.enable);
+  $('masterCkbx').checked = allChecked;
+  $('masterCkbx').indeterminate = !allChecked && someChecked;
+
+  tbody.innerHTML = entries.map(([name, cfg]) => {
+    const cols = colCache[name] || [];
+    const dtCols = cols.filter(c => DATETIME_TYPES.includes(c.type));
+    const allCols = cols.map(c => c.name);
+    const timeFieldOpts = ['', ...allCols].map(c =>
+      `<option value="${escHtml(c)}" ${c === cfg.timeField ? 'selected' : ''}>${escHtml(c || '(无)')}</option>`
+    ).join('');
+    const hlName = query ? highlightText(name, query) : escHtml(name);
+    return `<tr class="${cfg.enable ? 'tbl-enable' : ''}">
+      <td><input type="checkbox" class="ckbx" ${cfg.enable ? 'checked' : ''} data-name="${escHtml(name)}"></td>
+      <td class="td-code">${hlName}</td>
+      <td><select class="td-select" data-name="${escHtml(name)}" data-key="mode">
+        <option value="time" ${cfg.mode === 'time' ? 'selected' : ''}>时间范围</option>
+        <option value="all" ${cfg.mode === 'all' ? 'selected' : ''}>全量</option>
+      </select></td>
+      <td><input class="td-input" data-name="${escHtml(name)}" data-key="timeRange" value="${escHtml(cfg.timeRange)}" placeholder="2026-05-31~2026-06-03"></td>
+      <td><select class="td-select" data-name="${escHtml(name)}" data-key="timeField">${timeFieldOpts}</select></td>
+    </tr>`;
+  }).join('');
+}
+
+function highlightText(text, query) {
+  const escaped = escHtml(text);
+  const lower = escaped.toLowerCase();
+  const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!keywords.length) return escaped;
+
+  // 收集所有匹配区间
+  const ranges = [];
+  keywords.forEach(kw => {
+    let start = 0;
+    while (true) {
+      const idx = lower.indexOf(kw, start);
+      if (idx < 0) break;
+      ranges.push([idx, idx + kw.length]);
+      start = idx + 1;
+    }
+  });
+
+  if (!ranges.length) return escaped;
+
+  // 合并重叠区间并排序
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [ranges[0]];
+  for (let i = 1; i < ranges.length; i++) {
+    const last = merged[merged.length - 1];
+    if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
+    else merged.push(ranges[i]);
+  }
+
+  // 构建结果
+  let result = '', pos = 0;
+  merged.forEach(([s, e]) => {
+    result += escaped.substring(pos, s) + '<mark>' + escaped.substring(s, e) + '</mark>';
+    pos = e;
+  });
+  result += escaped.substring(pos);
+  return result;
+}
+
+/* ===== 批量时间 ===== */
+function showBatchTimeModal() {
+  if (!Object.values(tables).some(t => t.enable)) {
+    log('请先启用至少一张表', 'err');
+    return;
+  }
+  $('batchTimeModal').classList.add('show');
+}
+
+function applyBatchTime() {
+  const range = $('batchTimeRange').value.trim();
+  Object.values(tables).forEach(t => { if (t.enable) t.timeRange = range; });
+  renderTable();
+  closeModal('batchTimeModal');
+  log('已批量设置时间范围: ' + range, 'ok');
+  autoSave();
+}
+
+/* ===== 事件委托 ===== */
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.dataset.name) return;
+  const name = el.dataset.name;
+  if (el.classList.contains('ckbx')) {
+    tables[name].enable = el.checked;
+    if (el.checked) detectTimeField(name);
+    renderTable();
+    autoSave();
+  } else if (el.dataset.key) {
+    tables[name][el.dataset.key] = el.value;
+    autoSave();
+  }
+});
+
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (el.dataset.name && el.dataset.key) {
+    tables[el.dataset.name][el.dataset.key] = el.value;
+  }
+});
+
+/* ===== 同步执行 ===== */
+async function startSync() {
+  if (syncing) return;
+  const conn = readConn();
+  const enabled = Object.entries(tables).filter(([, t]) => t.enable);
+  if (!enabled.length) { log('请先启用至少一张表', 'err'); return; }
+  if (!$('srcDot').classList.contains('dot-green')) { log('请先测试连接并确保源库连接成功', 'err'); return; }
+
+  syncing = true;
+  await saveCfg();
+
+  collapsePanel('conn', true);
+  collapsePanel('tbl', true);
+  collapsePanel('log', false);
+
+  $('logBox').classList.add('busy');
+  $('syncBtn').disabled = true;
+  $('syncBtn').innerHTML = '<svg class="sp" style="width:14px;height:14px;margin:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> 同步中...';
+
+  $('logBox').innerHTML = '';
+  $('logStatus').textContent = `${enabled.length} 张表`;
+
+  try {
+    const resp = await fetch('/api/sync/execute', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: conn.source, target: conn.target, tables }),
+    });
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const d = JSON.parse(line.substring(6));
+          if (d.msg === '__DONE__') { finishedSync(); return; }
+          let type = 'i';
+          if (/^[✓✅━]/.test(d.msg)) type = 'ok';
+          else if (/^[✗❌⚠]/.test(d.msg)) type = 'err';
+          log(d.msg, type);
+        } catch {}
+      }
+    }
+    finishedSync();
+  } catch (e) {
+    log('同步异常: ' + e.message, 'err');
+    finishedSync();
+  }
+}
+
+function finishedSync() {
+  $('logBox').classList.remove('busy');
+  $('logStatus').textContent = '';
+  $('syncBtn').disabled = false;
+  $('syncBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 开始同步';
+  syncing = false;
+}
+
+function log(msg, type) {
+  const box = $('logBox');
+  const div = document.createElement('div');
+  div.className = type || '';
+  const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  div.innerHTML = `<span class="log-time">${time}</span>${escHtml(msg)}`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ===== 初始化 ===== */
+applyPanelState();
+
+(async function init() {
+  try {
+    const r = await fetch('/api/sync/config/exists');
+    const d = await r.json();
+    if (!d.exists) {
+      showCreateConfigModal('新建数据库配置');
+    } else {
+      await loadCfg();
+    }
+  } catch { await loadCfg(); }
+
+  // 连接表单自动保存
+  $('connPanel').addEventListener('change', autoSave);
+})();
+</script>
+</body>
+</html>

@@ -1,20 +1,20 @@
 @echo off
-title Token 看板
+title dTools
 
 :MENU
 cls
 echo.
 echo ==============================
-echo   Token 看板
+echo   dTools v2.0
 echo ==============================
 echo.
-echo  1. 启动
-echo  2. 停止
-echo  3. 重启
-echo  4. 浏览器
-echo  0. 退出
+echo  1. Start
+echo  2. Stop
+echo  3. Restart
+echo  4. Browser
+echo  0. Exit
 echo.
-set /p sel=请选择:
+set /p sel=Please select:
 
 if "%sel%"=="1" goto START
 if "%sel%"=="2" goto STOP
@@ -27,12 +27,12 @@ goto MENU
 cls
 echo.
 echo ==============================
-echo   正在启动...
+echo   Starting...
 echo ==============================
 echo.
-start http://localhost:3456
-start "" "%~dp0Token 看板.exe"
-echo 启动完成
+start http://127.0.0.1:3456
+start "" python app.py
+echo Started
 pause
 goto MENU
 
@@ -40,13 +40,13 @@ goto MENU
 cls
 echo.
 echo ==============================
-echo   正在停止...
+echo   Stopping...
 echo ==============================
 echo.
 for /f "tokens=5" %%a in ('netstat -ano ^| find ":3456" ^| find "LISTENING"') do (
   taskkill /F /PID %%a >nul 2>&1
 )
-echo 已停止
+echo Stopped
 pause
 goto MENU
 
@@ -54,23 +54,23 @@ goto MENU
 cls
 echo.
 echo ==============================
-echo   正在重启...
+echo   Restarting...
 echo ==============================
 echo.
 for /f "tokens=5" %%a in ('netstat -ano ^| find ":3456" ^| find "LISTENING"') do (
   taskkill /F /PID %%a >nul 2>&1
 )
 timeout /t 1 /nobreak >nul
-start http://localhost:3456
-start "" "%~dp0Token 看板.exe"
-echo 已重启
+start http://127.0.0.1:3456
+start "" python app.py
+echo Restarted
 pause
 goto MENU
 
 :BROWSER
-start http://localhost:3456
+start http://127.0.0.1:3456
 echo.
-echo 浏览器已打开
+echo Browser opened
 timeout /t 2 /nobreak >nul
 goto MENU
 

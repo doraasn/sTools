@@ -1,0 +1,4 @@
+flask>=3.0
+mysql-connector-python>=8.0
+paramiko>=3.0
+pyinstaller>=6.0
