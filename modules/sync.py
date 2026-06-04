@@ -10,9 +10,9 @@ import time
 from datetime import datetime, timedelta
 
 import mysql.connector
-from flask import Blueprint, Response, jsonify, render_template, request
+from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
-from modules.common import load_json, save_json
+import modules.common as _common
 from modules import log_collector
 
 MODULE_INFO = {
@@ -24,19 +24,21 @@ MODULE_INFO = {
 }
 
 sync_bp = Blueprint('sync', __name__)
-CONFIG_FILE = 'sync_config.json'
+CONFIG_FILE = 'sync_config.json'  # 已废弃，保留用于向后兼容迁移
 
 
 # ========== 配置管理 ==========
 
 def load_config():
-    return load_json(CONFIG_FILE, {
+    """读取同步配置"""
+    return _common.load_config('sync', {
         'configs': {}, 'activeConfig': '', 'activeTableConfig': {},
     })
 
 
 def save_config(cfg):
-    save_json(CONFIG_FILE, cfg)
+    """保存同步配置"""
+    _common.save_config('sync', cfg)
 
 
 def get_active():
@@ -203,7 +205,7 @@ def connect_db(cfg):
 
 @sync_bp.route('/sync')
 def sync_page():
-    return render_template('sync.html')
+    return render_template('sync.html', modules=current_app.config.get('MODULES', []), active_module='sync')
 
 
 @sync_bp.route('/api/sync/config', methods=['GET'])

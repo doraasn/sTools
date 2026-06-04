@@ -10,9 +10,9 @@ import re
 import threading
 import time
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 
-from modules.common import load_json, save_json
+import modules.common as _common
 from modules import log_collector
 
 # 模块元数据
@@ -52,7 +52,7 @@ _cache = {'data': None, 'ts': 0}
 _trae_caches = {}
 _trae_parsing = {}
 
-CONFIG_FILE = 'token-settings.json'
+CONFIG_FILE = 'token-settings.json'  # 已废弃，保留用于向后兼容迁移
 
 # 正则
 CLEAN_MODEL_RE = re.compile(r'<[^>]*>')
@@ -75,12 +75,12 @@ def clean_model(raw):
 
 def get_config():
     """读取设置"""
-    return load_json(CONFIG_FILE, {})
+    return _common.load_config('token')
 
 
 def save_config(data):
     """保存设置"""
-    save_json(CONFIG_FILE, data)
+    _common.save_config('token', data)
 
 
 # ========== Claude Code JSONL 解析 ==========
@@ -468,7 +468,7 @@ def get_token_report(records):
 
 @token_bp.route('/token')
 def token_page():
-    return render_template('token.html')
+    return render_template('token.html', modules=current_app.config.get('MODULES', []), active_module='token')
 
 
 @token_bp.route('/api/tokens')

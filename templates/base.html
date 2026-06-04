@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block page_title %}dTools{% endblock %}</title>
+  <link rel="stylesheet" href="/static/common.css">
+  {% block page_head %}{% endblock %}
+  <style>
+    /* 子页面可覆盖的变量块 */
+    {% block page_vars %}{% endblock %}
+  </style>
+  {% block page_style %}{% endblock %}
+</head>
+<body>
+
+  <!-- ===== 侧边栏 ===== -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sb-header">
+      <span class="sb-logo-text">dTools</span>
+      <button class="sb-toggle" id="sbToggle" title="收起/展开">◀</button>
+    </div>
+    <div class="sb-search">
+      <input type="text" id="sbSearchInput" placeholder="搜索工具..." oninput="filterTools(this.value)">
+    </div>
+    <div class="sb-list" id="sbList"></div>
+    <div class="sb-footer">
+      <button class="sb-log-btn" id="logToggleBtn" onclick="toggleLogPanel()">
+        <span class="sb-log-dot"></span>
+        <span>日志</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===== 主内容 ===== -->
+  <div class="main-content" id="mainContent">
+    {% block content %}{% endblock %}
+  </div>
+
+  <!-- ===== 全局日志面板 ===== -->
+  <div class="log-panel" id="logPanel">
+    <div class="lp-header">
+      <h4>📋 日志</h4>
+      <input class="lp-search" id="lpSearch" placeholder="搜索日志..." oninput="lpRender()">
+      <div class="lp-levels">
+        <button class="lp-lvl on" data-l="info" onclick="lpToggleLevel(this)">信息</button>
+        <button class="lp-lvl on" data-l="ok" onclick="lpToggleLevel(this)">成功</button>
+        <button class="lp-lvl on" data-l="warn" onclick="lpToggleLevel(this)">警告</button>
+        <button class="lp-lvl on" data-l="err" onclick="lpToggleLevel(this)">错误</button>
+      </div>
+      <div class="lp-actions">
+        <button class="lp-act on" id="lpAutoScroll" onclick="lpToggleAutoScroll()">自动滚动</button>
+        <button class="lp-act" onclick="lpCopy()">复制</button>
+        <button class="lp-act" onclick="lpClear()">清空</button>
+        <button class="lp-act" id="lpExpandBtn" onclick="lpToggleExpand()" title="全展开/还原">⛶</button>
+      </div>
+    </div>
+    <div class="lp-body" id="lpBody">
+      <div class="lp-empty">暂无日志</div>
+    </div>
+  </div>
+
+  <script>
+  /* ========================================
+     全局状态
+     ======================================== */
+  const SB_MODULES = {{ modules | rejectattr("name", "equalto", "log") | list | tojson }};
+  const ACTIVE_MODULE = '{{ active_module | default("") }}';
+  let sbPins = JSON.parse(localStorage.getItem('dt_sb_pins') || '[]');
+  let sbCollapsed = localStorage.getItem('dt_sb_collapsed') === '1';
+
+  /* ========================================
+     侧边栏逻辑
+     ======================================== */
+  function renderSidebar(filter) {
+    const f = (filter || '').toLowerCase();
+    const list = document.getElementById('sbList');
+    const pinned = SB_MODULES.filter(m => sbPins.includes(m.name));
+    const unpinned = SB_MODULES.filter(m => !sbPins.includes(m.name));
+    const matchPinned = f ? pinned.filter(m => (m.label || m.name).toLowerCase().includes(f)) : pinned;
+    const matchUnpinned = f ? unpinned.filter(m => (m.label || m.name).toLowerCase().includes(f)) : unpinned;
+    let html = '';
+    if (matchPinned.length) {
+      html += '<div class="sb-section-title">⭐ 常用</div>';
+      matchPinned.forEach(m => { html += sbToolHtml(m, true); });
+    }
+    if (matchUnpinned.length) {
+      html += '<div class="sb-section-title">全部工具</div>';
+      matchUnpinned.forEach(m => { html += sbToolHtml(m, false); });
+    }
+    if (!matchPinned.length && !matchUnpinned.length) {
+      html = '<div style="padding:16px 8px;color:var(--t3);font-size:12px">无匹配工具</div>';
+    }
+    list.innerHTML = html;
+  }
+
+  function sbToolHtml(m, pinned) {
+    const active = m.name === ACTIVE_MODULE ? ' active' : '';
+    const accent = m.accent || '#a855f7';
+    return `<a class="sb-tool${active}" href="/${m.name}" title="${m.label || m.name}">
+      <div class="sb-tool-icon" style="background:color-mix(in srgb,${accent} 15%,transparent);color:${accent}">${m.icon || '·'}</div>
+      <span class="sb-tool-label">${m.label || m.name}</span>
+      <button class="sb-pin-btn ${pinned ? 'pinned' : ''}" onclick="event.preventDefault();event.stopPropagation();togglePin('${m.name}')" title="${pinned ? '取消置顶' : '置顶'}">${pinned ? '★' : '☆'}</button>
+    </a>`;
+  }
+
+  function togglePin(name) {
+    const idx = sbPins.indexOf(name);
+    if (idx >= 0) sbPins.splice(idx, 1); else sbPins.push(name);
+    localStorage.setItem('dt_sb_pins', JSON.stringify(sbPins));
+    renderSidebar(document.getElementById('sbSearchInput').value);
+  }
+
+  function filterTools(val) { renderSidebar(val); }
+
+  function initSidebar() {
+    const sb = document.getElementById('sidebar');
+    if (sbCollapsed) { sb.classList.add('collapsed'); }
+    document.getElementById('sbToggle').addEventListener('click', () => {
+      sb.classList.toggle('collapsed');
+      localStorage.setItem('dt_sb_collapsed', sb.classList.contains('collapsed') ? '1' : '0');
+    });
+    renderSidebar();
+  }
+
+  /* ========================================
+     日志面板逻辑
+     ======================================== */
+  let lpOpen = false;
+  let lpLogs = [];
+  let lpLastTs = 0;
+  let lpAutoScroll = true;
+  let lpActiveLevels = new Set(['info', 'ok', 'warn', 'err']);
+  let lpPollTimer = null;
+
+  function toggleLogPanel() {
+    lpOpen = !lpOpen;
+    document.getElementById('logPanel').classList.toggle('open', lpOpen);
+    document.getElementById('logToggleBtn').classList.toggle('active', lpOpen);
+    if (lpOpen && !lpPollTimer) {
+      lpLoadLogs();
+      lpPollTimer = setInterval(lpPoll, 2000);
+    } else if (!lpOpen && lpPollTimer) {
+      clearInterval(lpPollTimer);
+      lpPollTimer = null;
+    }
+  }
+
+  function lpToggleExpand() {
+    const panel = document.getElementById('logPanel');
+    const btn = document.getElementById('lpExpandBtn');
+    const isFull = panel.classList.toggle('fullscreen');
+    btn.textContent = isFull ? '⊟' : '⛶';
+    btn.title = isFull ? '收起' : '全展开';
+  }
+
+  async function lpLoadLogs() {
+    try {
+      const r = await fetch('/api/logs');
+      lpLogs = await r.json();
+      if (lpLogs.length) lpLastTs = lpLogs[lpLogs.length - 1].ts;
+      lpRender();
+    } catch {}
+  }
+
+  async function lpPoll() {
+    if (!lpOpen) return;
+    try {
+      const r = await fetch('/api/logs/since?ts=' + lpLastTs);
+      const fresh = await r.json();
+      if (fresh.length) {
+        lpLogs.push(...fresh);
+        lpLastTs = fresh[fresh.length - 1].ts;
+        lpRender();
+      }
+    } catch {}
+  }
+
+  function lpToggleLevel(el) {
+    const l = el.dataset.l;
+    if (lpActiveLevels.has(l)) { lpActiveLevels.delete(l); el.classList.remove('on'); }
+    else { lpActiveLevels.add(l); el.classList.add('on'); }
+    lpRender();
+  }
+
+  function lpToggleAutoScroll() {
+    lpAutoScroll = !lpAutoScroll;
+    document.getElementById('lpAutoScroll').classList.toggle('on', lpAutoScroll);
+  }
+
+  function lpRender() {
+    const q = (document.getElementById('lpSearch').value || '').trim().toLowerCase();
+    const body = document.getElementById('lpBody');
+    const filtered = lpLogs.filter(e => {
+      if (!lpActiveLevels.has(e.level)) return false;
+      if (q) {
+        const text = (e.msg + ' ' + e.source).toLowerCase();
+        if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
+      }
+      return true;
+    });
+    if (!filtered.length) {
+      body.innerHTML = '<div class="lp-empty">' + (lpLogs.length ? '无匹配日志' : '暂无日志') + '</div>';
+      return;
+    }
+    body.innerHTML = filtered.map(e => {
+      const msg = q ? lpHighlight(lpEsc(e.msg), q) : lpSyntax(lpEsc(e.msg));
+      return `<div class="lp-entry">
+        <span class="lp-ts">${lpEsc(e.time)}</span>
+        <span class="lp-lvldot ${e.level}"></span>
+        <span class="lp-src">${lpEsc(e.source)}</span>
+        <span class="lp-msg">${msg}</span>
+      </div>`;
+    }).join('');
+    if (lpAutoScroll) body.scrollTop = body.scrollHeight;
+  }
+
+  function lpEsc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* 语法高亮：数字、字符串、路径、URL、错误关键词 */
+  function lpSyntax(text) {
+    // 错误/成功/警告关键词
+    text = text.replace(/\b(error|exception|traceback|failed|failure|errno)\b/gi, '<span class="hl-err">$1</span>');
+    text = text.replace(/\b(success|ok|done|completed|succeed)\b/gi, '<span class="hl-ok">$1</span>');
+    text = text.replace(/\b(warning|warn|timeout|retry|deprecated)\b/gi, '<span class="hl-warn">$1</span>');
+    // 布尔/空值
+    text = text.replace(/\b(true|false)\b/g, '<span class="hl-bool">$1</span>');
+    text = text.replace(/\b(null|none|undefined|nan)\b/gi, '<span class="hl-null">$1</span>');
+    // 数字（含小数、负数）
+    text = text.replace(/(?<![.\w])(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, '<span class="hl-num">$1</span>');
+    // 双引号字符串
+    text = text.replace(/&quot;([^&]*?)&quot;/g, '<span class="hl-str">&quot;$1&quot;</span>');
+    // 键名 (key: value)
+    text = text.replace(/(\w[\w]*)(?=\s*[:=])/g, '<span class="hl-key">$1</span>');
+    // 路径 (Windows / Unix)
+    text = text.replace(/([A-Z]:\\[\w\\.\/ -]+)/g, '<span class="hl-path">$1</span>');
+    text = text.replace(/(\/[\w./ -]{3,})/g, '<span class="hl-path">$1</span>');
+    // URL
+    text = text.replace(/(https?:\/\/[^\s<&]+)/g, '<span class="hl-url">$1</span>');
+    return text;
+  }
+
+  function lpHighlight(text, q) {
+    // 先做语法高亮，再叠加搜索高亮（跳过 HTML 标签）
+    let highlighted = lpSyntax(text);
+    const keywords = q.split(/\s+/).filter(Boolean);
+    keywords.forEach(kw => {
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('(<[^>]*>)|(' + escaped + ')', 'gi');
+      highlighted = highlighted.replace(re, (match, tag, kwMatch) => {
+        return tag ? tag : '<mark>' + kwMatch + '</mark>';
+      });
+    });
+    return highlighted;
+  }
+
+  async function lpCopy() {
+    const q = (document.getElementById('lpSearch').value || '').trim().toLowerCase();
+    const filtered = lpLogs.filter(e => {
+      if (!lpActiveLevels.has(e.level)) return false;
+      if (q) {
+        const text = (e.msg + ' ' + e.source).toLowerCase();
+        if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
+      }
+      return true;
+    });
+    const text = filtered.map(e => `${e.time} [${e.level.toUpperCase()}] [${e.source}] ${e.msg}`).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = document.querySelector('.lp-actions .lp-act:nth-child(2)');
+      btn.textContent = '已复制 ✓';
+      setTimeout(() => { btn.textContent = '复制'; }, 1500);
+    } catch {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+  }
+
+  async function lpClear() {
+    try {
+      await fetch('/api/logs/clear', { method: 'POST' });
+      lpLogs = []; lpLastTs = 0; lpRender();
+    } catch {}
+  }
+
+  /* ========================================
+     初始化
+     ======================================== */
+  document.addEventListener('DOMContentLoaded', () => {
+    initSidebar();
+  });
+  </script>
+  {% block page_script %}{% endblock %}
+</body>
+</html>

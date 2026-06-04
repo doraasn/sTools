@@ -4,7 +4,7 @@ dTools 日志查看模块
 @author y77h 2026-06-04
 """
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from modules import log_collector
 
@@ -21,7 +21,7 @@ log_bp = Blueprint('log', __name__)
 
 @log_bp.route('/log')
 def log_page():
-    return render_template('log.html')
+    return render_template('log.html', modules=current_app.config.get('MODULES', []), active_module='log')
 
 
 @log_bp.route('/api/logs')

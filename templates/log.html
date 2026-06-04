@@ -1,132 +1,89 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>日志 — dTools</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #0c0a09; --s: #1c1917; --s2: #292524; --b: #44403c;
-      --t: #e7e5e4; --t2: #a8a29e; --a: #f59e0b; --r: 8px;
-      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", monospace;
-    }
-    [data-theme="light"] {
-      --bg: #fafaf9; --s: #fff; --s2: #f5f5f4; --b: #d6d3d1;
-      --t: #1c1917; --t2: #78716c; --a: #d97706;
-    }
-    body { font-family: var(--font); background: var(--bg); color: var(--t); min-height: 100vh; }
-    .app { max-width: 1100px; margin: 0 auto; padding: 20px; }
+{% extends "base.html" %}
 
-    /* 头部 */
-    .hdr {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
-    }
-    .hdr h1 { font-size: 20px; font-weight: 600; }
-    .hdr-actions { display: flex; gap: 8px; align-items: center; }
+{% block page_title %}日志 — dTools{% endblock %}
 
-    /* 搜索栏 */
-    .search-bar {
-      display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
-    }
-    .search-input {
-      flex: 1; padding: 8px 12px; font-size: 13px;
-      background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
-      color: var(--t); font-family: var(--font);
-    }
-    .search-input:focus { outline: none; border-color: var(--a); }
-    .search-input::placeholder { color: var(--t2); }
+{% block page_style %}
+<style>
+  /* 头部 */
+  .hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+  }
+  .hdr h1 { font-size: 20px; font-weight: 600; }
+  .hdr-actions { display: flex; gap: 8px; align-items: center; }
+  .hdr-actions .btn.active { background: var(--a); color: #fff; border-color: var(--a); }
 
-    /* 统计 */
-    .stats {
-      display: flex; gap: 16px; font-size: 12px; color: var(--t2); margin-bottom: 12px;
-    }
-    .stats .count { font-weight: 600; color: var(--t); }
+  /* 搜索栏（继承 .ui-input） */
+  .search-bar {
+    display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
+  }
+  .search-input { flex: 1; }
 
-    /* 级别筛选 */
-    .level-filters { display: flex; gap: 4px; }
-    .level-btn {
-      padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer;
-      border: 1px solid var(--b); background: var(--s); color: var(--t2);
-      font-family: var(--font); transition: all .15s;
-    }
-    .level-btn:hover { border-color: var(--t2); }
-    .level-btn.act { color: #fff; border-color: transparent; }
-    .level-btn.act[data-level="info"] { background: #3b82f6; }
-    .level-btn.act[data-level="ok"] { background: #10b981; }
-    .level-btn.act[data-level="warn"] { background: #f59e0b; }
-    .level-btn.act[data-level="err"] { background: #ef4444; }
+  /* 统计 */
+  .stats {
+    display: flex; gap: 16px; font-size: 12px; color: var(--t2); margin-bottom: 12px;
+  }
+  .stats .count { font-weight: 600; color: var(--t); }
 
-    /* 按钮 */
-    .btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 6px 12px; border: 1px solid var(--b); border-radius: var(--r);
-      background: var(--s); color: var(--t); font-size: 12px; cursor: pointer;
-      font-family: var(--font); transition: all .15s;
-    }
-    .btn:hover { background: var(--s2); border-color: var(--t2); }
-    .btn.active { background: var(--a); color: #fff; border-color: var(--a); }
+  /* 级别筛选（继承 .ui-chip） */
+  .level-filters { display: flex; gap: 4px; }
+  .level-btn.act { color: #fff; border-color: transparent; }
+  .level-btn.act[data-level="info"] { background: var(--info); }
+  .level-btn.act[data-level="ok"] { background: var(--ok); }
+  .level-btn.act[data-level="warn"] { background: var(--warn); }
+  .level-btn.act[data-level="err"] { background: var(--err); }
 
-    /* 日志容器 */
-    .log-container {
-      background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
-      overflow: hidden;
-    }
-    .log-list {
-      height: calc(100vh - 220px); min-height: 300px;
-      overflow-y: auto; padding: 8px 0;
-      font-size: 13px; line-height: 1.6;
-    }
+  /* 日志容器（继承 .ui-panel） */
+  .log-container { overflow: hidden; }
+  .log-list {
+    height: calc(100vh - 260px); min-height: 300px;
+    overflow-y: auto; padding: 8px 0;
+    font-size: 13px; line-height: 1.6;
+  }
 
-    /* 日志条目 */
-    .log-entry {
-      display: flex; gap: 8px; padding: 3px 14px;
-      transition: background .1s;
-    }
-    .log-entry:hover { background: var(--s2); }
-    .log-time {
-      color: var(--t2); font-size: 12px; flex-shrink: 0;
-      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
-      min-width: 64px;
-    }
-    .log-level {
-      flex-shrink: 0; width: 6px; border-radius: 3px; margin-top: 7px; height: 6px;
-    }
-    .log-level.info { background: #3b82f6; }
-    .log-level.ok { background: #10b981; }
-    .log-level.warn { background: #f59e0b; }
-    .log-level.err { background: #ef4444; }
-    .log-source {
-      color: var(--a); font-size: 11px; flex-shrink: 0; min-width: 40px;
-      font-weight: 600; margin-top: 1px;
-    }
-    .log-msg { flex: 1; word-break: break-all; }
+  /* 日志条目 */
+  .log-entry {
+    display: flex; gap: 8px; padding: 3px 14px;
+    transition: background .1s;
+  }
+  .log-entry:hover { background: var(--s2); }
+  .log-time {
+    color: var(--t3); font-size: 12px; flex-shrink: 0;
+    font-family: var(--mono); min-width: 64px;
+  }
+  .log-level {
+    flex-shrink: 0; width: 6px; border-radius: 3px; margin-top: 7px; height: 6px;
+  }
+  .log-level.info { background: var(--info); }
+  .log-level.ok { background: var(--ok); }
+  .log-level.warn { background: var(--warn); }
+  .log-level.err { background: var(--err); }
+  .log-source {
+    color: var(--a); font-size: 11px; flex-shrink: 0; min-width: 40px;
+    font-weight: 600; margin-top: 1px;
+  }
+  .log-msg { flex: 1; word-break: break-all; }
 
-    /* 高亮 */
-    mark {
-      background: rgba(245, 158, 11, 0.3); color: var(--t);
-      border-radius: 2px; padding: 0 1px;
-    }
+  /* 搜索高亮 */
+  .log-container mark {
+    background: color-mix(in srgb, var(--warn) 30%, transparent); color: var(--t);
+    border-radius: 2px; padding: 0 1px;
+  }
 
-    /* 空状态 */
-    .empty {
-      text-align: center; padding: 60px 20px; color: var(--t2); font-size: 14px;
-    }
+  /* 空状态 */
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--t3); font-size: 14px;
+  }
 
-    /* 滚动条 */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--b); border-radius: 3px; }
+  @media (max-width: 600px) {
+    .hdr { flex-direction: column; align-items: flex-start; }
+    .log-source { display: none; }
+  }
+</style>
+{% endblock %}
 
-    @media (max-width: 600px) {
-      .hdr { flex-direction: column; align-items: flex-start; }
-      .log-source { display: none; }
-    }
-  </style>
-</head>
-<body>
-<div class="app">
+{% block content %}
+<div class="page-content">
   <div class="hdr">
     <h1>日志</h1>
     <div class="hdr-actions">
@@ -137,12 +94,12 @@
   </div>
 
   <div class="search-bar">
-    <input class="search-input" id="searchInput" placeholder="搜索日志内容..." oninput="renderLogs()">
+    <input class="ui-input search-input" id="searchInput" placeholder="搜索日志内容..." oninput="renderLogs()">
     <div class="level-filters">
-      <div class="level-btn act" data-level="info" onclick="toggleLevel(this)">信息</div>
-      <div class="level-btn act" data-level="ok" onclick="toggleLevel(this)">成功</div>
-      <div class="level-btn act" data-level="warn" onclick="toggleLevel(this)">警告</div>
-      <div class="level-btn act" data-level="err" onclick="toggleLevel(this)">错误</div>
+      <div class="ui-chip level-btn act" data-level="info" onclick="toggleLevel(this)">信息</div>
+      <div class="ui-chip level-btn act" data-level="ok" onclick="toggleLevel(this)">成功</div>
+      <div class="ui-chip level-btn act" data-level="warn" onclick="toggleLevel(this)">警告</div>
+      <div class="ui-chip level-btn act" data-level="err" onclick="toggleLevel(this)">错误</div>
     </div>
   </div>
 
@@ -151,13 +108,15 @@
     <span>匹配 <span class="count" id="matchCount">0</span> 条</span>
   </div>
 
-  <div class="log-container">
+  <div class="ui-panel log-container">
     <div class="log-list" id="logList">
       <div class="empty">暂无日志，等待操作...</div>
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block page_script %}
 <script>
 const $ = id => document.getElementById(id);
 let logs = [];
@@ -261,18 +220,18 @@ function renderLogs() {
   $('matchCount').textContent = filtered.length;
 
   if (!filtered.length) {
-    list.innerHTML = `<div class="empty">${logs.length ? '无匹配日志' : '暂无日志，等待操作...'}</div>`;
+    list.innerHTML = '<div class="empty">' + (logs.length ? '无匹配日志' : '暂无日志，等待操作...') + '</div>';
     return;
   }
 
   list.innerHTML = filtered.map(e => {
     const msg = query ? highlightText(e.msg, query) : escHtml(e.msg);
-    return `<div class="log-entry">
-      <span class="log-time">${escHtml(e.time)}</span>
-      <span class="log-level ${e.level}"></span>
-      <span class="log-source">${escHtml(e.source)}</span>
-      <span class="log-msg">${msg}</span>
-    </div>`;
+    return '<div class="log-entry">' +
+      '<span class="log-time">' + escHtml(e.time) + '</span>' +
+      '<span class="log-level ' + e.level + '"></span>' +
+      '<span class="log-source">' + escHtml(e.source) + '</span>' +
+      '<span class="log-msg">' + msg + '</span>' +
+    '</div>';
   }).join('');
 
   if (autoScroll) {
@@ -283,7 +242,7 @@ function renderLogs() {
 /* 增量轮询 */
 async function pollLogs() {
   try {
-    const r = await fetch(`/api/logs/since?ts=${lastTs}`);
+    const r = await fetch('/api/logs/since?ts=' + lastTs);
     const newLogs = await r.json();
     if (newLogs.length) {
       logs.push(...newLogs);
@@ -301,6 +260,29 @@ async function clearLogs() {
     lastTs = 0;
     renderLogs();
   } catch {}
+}
+
+/* 复制日志 */
+async function copyLogs() {
+  const query = $('searchInput').value.trim();
+  const filtered = logs.filter(e => {
+    if (!activeLevels.has(e.level)) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      const text = (e.msg + ' ' + e.source).toLowerCase();
+      if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
+    }
+    return true;
+  });
+  const text = filtered.map(e => e.time + ' [' + e.level.toUpperCase() + '] [' + e.source + '] ' + e.msg).join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
 }
 
 /* 初始化 */
@@ -324,5 +306,4 @@ async function init() {
 
 init();
 </script>
-</body>
-</html>
+{% endblock %}

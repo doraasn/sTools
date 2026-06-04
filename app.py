@@ -18,11 +18,15 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect
 
 PORT = 3456
 HOST = '127.0.0.1'
 VERSION = 'v2.0'
+
+# 确保 static 目录存在
+_static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+os.makedirs(_static_dir, exist_ok=True)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 MODULES = []
@@ -47,6 +51,7 @@ def load_modules():
             if hasattr(mod, 'register') and hasattr(mod, 'MODULE_INFO'):
                 mod.register(app)
                 MODULES.append(mod.MODULE_INFO)
+                app.config['MODULES'] = MODULES  # 供模板渲染侧边栏
                 print(f'  ✓ 已加载模块: {mod.MODULE_INFO.get("label", mod_name)}')
         except Exception as e:
             print(f'  ✗ 加载模块 {mod_name} 失败: {e}')
@@ -54,7 +59,8 @@ def load_modules():
 
 @app.route('/')
 def home():
-    return render_template('index.html', modules=MODULES, version=VERSION, host=HOST, port=PORT)
+    """重定向到 Token 看板"""
+    return redirect('/token')
 
 
 def show_banner():
@@ -126,13 +132,6 @@ if __name__ == '__main__':
     threading.Thread(target=console_loop, daemon=True).start()
 
     show_banner()
-
-    # 延迟打开浏览器，等服务就绪
-    def _delayed_open():
-        time.sleep(0.5)
-        open_browser()
-
-    threading.Thread(target=_delayed_open, daemon=True).start()
 
     try:
         app.run(host=HOST, port=PORT, debug=False, use_reloader=False)

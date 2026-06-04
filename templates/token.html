@@ -1,203 +1,152 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Token 看板 — dTools</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <style>
-    /* ===== 重置 ===== */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+{% extends "base.html" %}
 
-    /* ===== 暗色主题 ===== */
-    :root {
-      --bg: #0c0a09; --s: #1c1917; --s2: #292524; --b: #44403c;
-      --t: #e7e5e4; --t2: #a8a29e; --a: #06b6d4; --r: 8px;
-      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
-    }
-    /* ===== 亮色主题 ===== */
-    [data-theme="light"] {
-      --bg: #fafaf9; --s: #fff; --s2: #f5f5f4; --b: #d6d3d1;
-      --t: #1c1917; --t2: #78716c; --a: #0891b2;
-    }
+{% block page_title %}Token 看板 — dTools{% endblock %}
 
-    body { font-family: var(--font); background: var(--bg); color: var(--t); min-height: 100vh; }
-    .app { max-width: 1050px; margin: 0 auto; padding: 24px 20px; }
-    ::selection { background: var(--a); color: #fff; }
+{% block page_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+{% endblock %}
 
-    /* ===== 工具切换 ===== */
-    .ts { display: flex; gap: 6px; margin-bottom: 16px; }
-    .tc {
-      padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
-      border: 1px solid var(--b); background: var(--s); color: var(--t2);
-      transition: all .15s; font-family: var(--font);
-    }
-    .tc:hover { border-color: var(--t2); }
-    .tc.act { background: var(--a); color: #fff; border-color: var(--a); }
+{% block page_vars %}{% endblock %}
 
-    /* ===== 头部 ===== */
-    .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-    .hdr h1 { font-size: 22px; font-weight: 700; }
-    .ac { display: flex; gap: 6px; }
-    .bi {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 32px; height: 32px; border: 1px solid var(--b); border-radius: var(--r);
-      background: var(--s); color: var(--t); cursor: pointer; transition: all .15s;
-    }
-    .bi:hover { background: var(--s2); border-color: var(--t2); }
-    .bi svg { width: 16px; height: 16px; }
+{% block page_style %}
+<style>
+  /* ===== 工具切换（继承 .ui-chip） ===== */
+  .ts { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tc.act { background: var(--a); color: #fff; border-color: var(--a); }
 
-    /* ===== 按钮 ===== */
-    .btn {
-      display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px;
-      border: 1px solid var(--b); border-radius: var(--r);
-      background: var(--s); color: var(--t); font-size: 13px; cursor: pointer;
-      font-family: var(--font); line-height: 1; transition: all .15s;
-    }
-    .btn:hover { background: var(--s2); border-color: var(--t2); }
+  /* ===== 头部（.bi 继承 .btn） ===== */
+  .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .hdr h1 { font-size: 22px; font-weight: 700; }
+  .ac { display: flex; gap: 6px; }
+  .bi { width: 32px; height: 32px; padding: 0; justify-content: center; }
+  .bi svg { width: 16px; height: 16px; }
 
-    /* ===== 统计卡片 ===== */
-    .sg { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
-    .sc {
-      background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
-      padding: 14px 16px; position: relative; overflow: hidden;
-    }
-    .sc .v { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
-    .sc .l { font-size: 12px; color: var(--t2); }
-    .sc .sub { font-size: 11px; color: var(--t2); margin-top: 2px; }
-    .sc .bar {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
-      background: linear-gradient(90deg, var(--a), color-mix(in srgb, var(--a) 40%, transparent));
-    }
+  /* ===== 统计卡片 ===== */
+  .sg { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .sc {
+    background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
+    padding: 14px 16px; position: relative; overflow: hidden;
+  }
+  .sc .v { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
+  .sc .v { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
+  .sc .l { font-size: 12px; color: var(--t2); }
+  .sc .sub { font-size: 11px; color: var(--t2); margin-top: 2px; }
+  .sc .bar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--a), color-mix(in srgb, var(--a) 40%, transparent));
+  }
 
-    /* ===== 筛选栏 ===== */
-    .fb { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-    .fg { display: flex; gap: 4px; flex-wrap: wrap; }
-    .fc {
-      padding: 4px 12px; border-radius: 16px; font-size: 12px; cursor: pointer;
-      border: 1px solid var(--b); background: var(--s); color: var(--t2);
-      transition: all .15s; font-family: var(--font);
-    }
-    .fc:hover { border-color: var(--t2); }
-    .fc.act { background: var(--a); color: #fff; border-color: var(--a); }
-    .refresh-info { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--t2); }
+  /* ===== 筛选栏（.fc 继承 .ui-chip） ===== */
+  .fb { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .fg { display: flex; gap: 4px; flex-wrap: wrap; }
+  .fc.act { background: var(--a); color: #fff; border-color: var(--a); }
+  .refresh-info { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--t2); }
 
-    /* ===== 图表卡片 ===== */
-    .cc {
-      background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
-      padding: 16px; margin-bottom: 16px;
-    }
-    .cc h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--t2); }
+  /* ===== 图表卡片 ===== */
+  .cc {
+    background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .cc h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--t2); }
 
-    /* ===== 图例 ===== */
-    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    .li {
-      display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--t2);
-      cursor: pointer; transition: opacity .15s;
-    }
-    .li.hidden { opacity: .35; text-decoration: line-through; }
-    .d { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-    .pct { font-size: 11px; color: var(--t2); }
+  /* ===== 图例 ===== */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .li {
+    display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--t2);
+    cursor: pointer; transition: opacity .15s;
+  }
+  .li.hidden { opacity: .35; text-decoration: line-through; }
+  .d { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .pct { font-size: 11px; color: var(--t2); }
 
-    /* ===== 饼图行 ===== */
-    .pr { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-    .pie-wrap { text-align: center; }
-    .pie-wrap canvas { max-width: 100%; }
-    @media (max-width: 700px) { .pr { grid-template-columns: 1fr; } }
+  /* ===== 饼图行 ===== */
+  .pr { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .pie-wrap { text-align: center; }
+  .pie-wrap canvas { max-width: 100%; }
+  @media (max-width: 700px) { .pr { grid-template-columns: 1fr; } }
 
-    /* ===== 指标条 ===== */
-    .indicators {
-      display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--t2);
-    }
-    .ind { display: flex; align-items: center; gap: 4px; }
-    .ind-dot { width: 8px; height: 8px; border-radius: 2px; }
+  /* ===== 指标条 ===== */
+  .indicators {
+    display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--t2);
+  }
+  .ind { display: flex; align-items: center; gap: 4px; }
+  .ind-dot { width: 8px; height: 8px; border-radius: 2px; }
 
-    /* ===== Loading ===== */
-    .ld { text-align: center; padding: 40px; color: var(--t2); }
-    .sp {
-      width: 24px; height: 24px; border: 2px solid var(--b);
-      border-top-color: var(--a); border-radius: 50%;
-      animation: spin .6s linear infinite; margin: 0 auto 8px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+  /* ===== Loading ===== */
+  .ld { text-align: center; padding: 40px; color: var(--t2); }
+  .sp {
+    width: 24px; height: 24px; border: 2px solid var(--b);
+    border-top-color: var(--a); border-radius: 50%;
+    animation: spin .6s linear infinite; margin: 0 auto 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ===== Tooltip ===== */
-    .tp {
-      position: fixed; background: rgba(0,0,0,.92); color: #fff; font-size: 12px;
-      padding: 10px 14px; border-radius: 6px; pointer-events: none;
-      z-index: 100; opacity: 0; border: 1px solid #333;
-      max-width: 300px; line-height: 1.7; font-family: var(--font);
-      transition: opacity .1s;
-    }
-    .tp.show { opacity: 1; }
-    .tp b { color: var(--a); }
+  /* ===== Tooltip ===== */
+  .tp {
+    position: fixed; background: rgba(0,0,0,.92); color: #fff; font-size: 12px;
+    padding: 10px 14px; border-radius: 6px; pointer-events: none;
+    z-index: 100; opacity: 0; border: 1px solid var(--b);
+    max-width: 300px; line-height: 1.7; font-family: var(--font);
+    transition: opacity .1s;
+  }
+  .tp.show { opacity: 1; }
+  .tp b { color: var(--a); }
 
-    /* ===== 日历弹窗 ===== */
-    .cal-popup {
-      position: absolute; background: var(--s); border: 1px solid var(--b);
-      border-radius: 8px; padding: 12px; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.3);
-    }
-    .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .cal-nav button {
-      background: none; border: none; color: var(--t); cursor: pointer;
-      font-size: 16px; padding: 4px 8px; border-radius: 4px;
-    }
-    .cal-nav button:hover { background: var(--s2); }
-    .cal-nav span { font-size: 14px; font-weight: 600; }
-    .cal-table { border-collapse: collapse; width: 100%; }
-    .cal-table th { font-size: 11px; color: var(--t2); font-weight: 500; padding: 4px; }
-    .cal-table td {
-      padding: 4px; text-align: center; font-size: 12px; cursor: pointer;
-      border-radius: 4px; transition: background .1s;
-    }
-    .cal-table td:hover { background: var(--s2); }
-    .cal-table td.other { color: var(--t2); opacity: .4; }
-    .cal-table td.sel { background: var(--a); color: #fff; }
-    .cal-table td.in-range { background: color-mix(in srgb, var(--a) 20%, transparent); }
-    .cal-table td.in-range-start { border-radius: 4px 0 0 4px; }
-    .cal-table td.in-range-end { border-radius: 0 4px 4px 0; }
+  /* ===== 日历弹窗 ===== */
+  .cal-popup {
+    position: absolute; background: var(--s); border: 1px solid var(--b);
+    border-radius: 8px; padding: 12px; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  }
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-nav button {
+    background: none; border: none; color: var(--t); cursor: pointer;
+    font-size: 16px; padding: 4px 8px; border-radius: 4px;
+  }
+  .cal-nav button:hover { background: var(--s2); }
+  .cal-nav span { font-size: 14px; font-weight: 600; }
+  .cal-table { border-collapse: collapse; width: 100%; }
+  .cal-table th { font-size: 11px; color: var(--t2); font-weight: 500; padding: 4px; }
+  .cal-table td {
+    padding: 4px; text-align: center; font-size: 12px; cursor: pointer;
+    border-radius: 4px; transition: background .1s;
+  }
+  .cal-table td:hover { background: var(--s2); }
+  .cal-table td.other { color: var(--t2); opacity: .4; }
+  .cal-table td.sel { background: var(--a); color: #fff; }
+  .cal-table td.in-range { background: color-mix(in srgb, var(--a) 20%, transparent); }
+  .cal-table td.in-range-start { border-radius: 4px 0 0 4px; }
+  .cal-table td.in-range-end { border-radius: 0 4px 4px 0; }
 
-    /* ===== 设置弹窗 ===== */
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200;
-      display: none; align-items: center; justify-content: center;
-    }
-    .modal-overlay.show { display: flex; }
-    .modal {
-      background: var(--s); border: 1px solid var(--b); border-radius: 12px;
-      padding: 24px; max-width: 480px; width: 92vw; max-height: 80vh;
-      overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,.4);
-    }
-    .modal h2 { font-size: 16px; margin-bottom: 16px; }
-    .msec { margin-bottom: 16px; }
-    .msec h4 { font-size: 13px; color: var(--t2); margin-bottom: 8px; }
-    .mrow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .mrow label { font-size: 12px; min-width: 80px; }
-    .mrow input[type="text"] {
-      flex: 1; padding: 4px 8px; font-size: 12px; border: 1px solid var(--b);
-      border-radius: 4px; background: var(--bg); color: var(--t); font-family: var(--font);
-    }
-    .mrow input[type="checkbox"] { accent-color: var(--a); }
-    .mb { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  /* ===== 设置弹窗（继承 .ui-modal-overlay / .ui-modal） ===== */
+  .modal-overlay { display: none; }
+  .modal-overlay.show { display: flex; }
+  .modal { padding: 24px; }
+  .modal h2 { font-size: 16px; margin-bottom: 16px; }
+  .msec { margin-bottom: 16px; }
+  .msec h4 { font-size: 13px; color: var(--t2); margin-bottom: 8px; }
+  .mrow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .mrow label { font-size: 12px; min-width: 80px; }
+  .mb { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
-    /* ===== Loading Overlay ===== */
-    .loading-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300;
-      display: none; align-items: center; justify-content: center;
-    }
-    .loading-overlay.show { display: flex; }
-    .lo-box { text-align: center; color: var(--t); }
-    .lo-box .sp { width: 32px; height: 32px; margin-bottom: 12px; }
+  /* ===== Loading Overlay ===== */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300;
+    display: none; align-items: center; justify-content: center;
+  }
+  .loading-overlay.show { display: flex; }
+  .lo-box { text-align: center; color: var(--t); }
+  .lo-box .sp { width: 32px; height: 32px; margin-bottom: 12px; }
 
-    /* ===== 响应式 ===== */
-    @media (max-width: 600px) {
-      .app { padding: 16px 12px; }
-      .sg { grid-template-columns: repeat(2, 1fr); }
-    }
-  </style>
-</head>
-<body>
-<div class="app">
+  /* ===== 响应式 ===== */
+  @media (max-width: 600px) {
+    .page-content { padding: 16px 12px; }
+    .sg { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content">
   <!-- 工具切换 -->
   <div class="ts" id="toolSwitcher"></div>
 
@@ -205,12 +154,12 @@
   <div class="hdr">
     <h1>Token 看板</h1>
     <div class="ac">
-      <button class="bi" id="themeBtn" title="切换主题">
+      <button class="btn bi" id="themeBtn" title="切换主题">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
         </svg>
       </button>
-      <button class="bi" id="settingsBtn" title="设置">
+      <button class="btn bi" id="settingsBtn" title="设置">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
         </svg>
@@ -225,13 +174,13 @@
   <div id="main"></div>
 
   <!-- 设置弹窗 -->
-  <div class="modal-overlay" id="settingsModal">
-    <div class="modal">
-      <h2>⚙ 设置</h2>
+  <div class="ui-modal-overlay modal-overlay" id="settingsModal">
+    <div class="ui-modal modal">
+      <h2>&#9881; 设置</h2>
       <div id="settingsBody"></div>
       <div class="mb">
-        <button class="btn" onclick="$('settingsModal').classList.remove('show')">取消</button>
-        <button class="btn" id="settingsSave" style="background:var(--a);color:#fff;border-color:var(--a)">保存</button>
+        <button class="btn" onclick="document.getElementById('settingsModal').classList.remove('show')">取消</button>
+        <button class="btn btn-primary" id="settingsSave">保存</button>
       </div>
     </div>
   </div>
@@ -247,7 +196,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block page_script %}
 <script>
 /* ===== 全局状态 ===== */
 const $ = id => document.getElementById(id);
@@ -259,6 +210,7 @@ let chDailyHidden = new Set(), chModelBarHidden = new Set();
 let dateFilter = { type: 'all', start: '', end: '' };
 let currentTool = 'claude';
 let refreshInterval = null, switchingTool = false;
+let lastDataHash = '';
 let traePaths = {};
 let displayNames = {}, hiddenProjects = [];
 let calState = { year: 0, month: 0, start: null, end: null };
@@ -293,7 +245,7 @@ const TOOLS = [
 
 function renderToolSwitcher() {
   $('toolSwitcher').innerHTML = TOOLS.map(t =>
-    `<div class="tc${t.key === currentTool ? ' act' : ''}" data-tool="${t.key}">${t.label}</div>`
+    `<div class="ui-chip tc${t.key === currentTool ? ' act' : ''}" data-tool="${t.key}">${t.label}</div>`
   ).join('');
 }
 
@@ -338,12 +290,12 @@ function renderFilters() {
   ];
   let html = '<div class="fg">';
   presets.forEach(p => {
-    html += `<div class="fc${dateFilter.type === p.type ? ' act' : ''}" data-date="${p.type}">${p.label}</div>`;
+    html += `<div class="ui-chip fc${dateFilter.type === p.type ? ' act' : ''}" data-date="${p.type}">${p.label}</div>`;
   });
   // 日历选择器
   const calLabel = dateFilter.type === 'range'
     ? `${dateFilter.start} ~ ${dateFilter.end}` : '选择日期';
-  html += `<div class="fc${dateFilter.type === 'range' ? ' act' : ''}" id="calTrigger">${calLabel}</div>`;
+  html += `<div class="ui-chip fc${dateFilter.type === 'range' ? ' act' : ''}" id="calTrigger">${calLabel}</div>`;
   html += '</div>';
 
   // 刷新信息
@@ -393,9 +345,9 @@ function renderCal(anchor) {
   const monthLabel = `${year}年${month + 1}月`;
 
   let html = `<div class="cal-nav">
-    <button onclick="calNav(-1)">‹</button>
+    <button onclick="calNav(-1)">&#8249;</button>
     <span>${monthLabel}</span>
-    <button onclick="calNav(1)">›</button>
+    <button onclick="calNav(1)">&#8250;</button>
   </div>`;
   html += '<table class="cal-table"><thead><tr>';
   ['日','一','二','三','四','五','六'].forEach(d => html += `<th>${d}</th>`);
@@ -864,8 +816,8 @@ function renderSettings() {
       const hidden = hiddenProjects.includes(p.name);
       const name = displayNames[p.name] || p.name;
       html += `<div class="mrow">
-        <input type="checkbox" ${hidden ? '' : 'checked'} data-sproj="${esc(p.name)}">
-        <input type="text" value="${esc(name)}" data-sname="${esc(p.name)}" style="max-width:200px">
+        <input type="checkbox" class="ui-checkbox" ${hidden ? '' : 'checked'} data-sproj="${esc(p.name)}">
+        <input type="text" class="ui-input-sm" value="${esc(name)}" data-sname="${esc(p.name)}" style="max-width:200px">
         <span style="font-size:11px;color:var(--t2)">${fmt(p.total)}</span>
       </div>`;
     });
@@ -874,7 +826,7 @@ function renderSettings() {
     const toolLabel = currentTool === 'trae-intl' ? 'Trae' : 'Trae CN';
     const toolKey = currentTool;
     html += `<div class="msec"><h4>${toolLabel} 日志路径</h4>`;
-    html += `<div class="mrow"><input type="text" id="traePathInput" value="${esc(traePaths[toolKey] || '')}" placeholder="留空使用默认路径"></div>`;
+    html += `<div class="mrow"><input type="text" class="ui-input-sm" id="traePathInput" value="${esc(traePaths[toolKey] || '')}" placeholder="留空使用默认路径"></div>`;
     html += '</div>';
   }
   $('settingsBody').innerHTML = html;
@@ -891,11 +843,14 @@ async function refreshData() {
   if (switchingTool) return;
   try {
     const raw = await api(`/api/tokens?tool=${currentTool}`);
+    updateRefreshTime(); // 无论数据是否变化都更新时间
+    const hash = JSON.stringify(raw);
+    if (hash === lastDataHash) return; // 数据没变，跳过渲染
+    lastDataHash = hash;
     rawData = raw;
     data = applySettings(raw);
     renderFilters();
     renderAll();
-    updateRefreshTime();
   } catch (e) { console.error('刷新失败:', e); }
 }
 
@@ -912,6 +867,7 @@ async function init() {
     const raw = await api(`/api/tokens?tool=${currentTool}`);
     rawData = raw;
     data = applySettings(raw);
+    lastDataHash = JSON.stringify(raw);
     renderFilters();
     renderAll();
     updateRefreshTime();
@@ -964,6 +920,7 @@ document.addEventListener('click', async (e) => {
       clearTimeout(timer);
       rawData = raw;
       data = applySettings(raw);
+      lastDataHash = JSON.stringify(raw);
       renderFilters();
       renderAll();
       updateRefreshTime();
@@ -1106,5 +1063,4 @@ document.addEventListener('click', async (e) => {
 initTheme();
 init();
 </script>
-</body>
-</html>
+{% endblock %}
