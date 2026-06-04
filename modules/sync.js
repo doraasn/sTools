@@ -158,15 +158,26 @@ function saveActiveConfig(config, tableConfig) {
 
 // ==================== Database ====================
 
+/** 支持的数据库类型及其默认端口 */
+const DB_TYPES = {
+  mysql: { label: 'MySQL', defaultPort: 3306, icon: '🐬' },
+  // 后续扩展: postgresql, sqlserver, oracle 等
+};
+
 async function connectDb(cfg) {
-  return mysql.createConnection({
-    host: cfg.host,
-    port: parseInt(cfg.port) || 3306,
-    user: cfg.user,
-    password: cfg.password,
-    database: cfg.database || 'gas_balance',
-    charset: 'utf8mb4',
-  });
+  const dbType = cfg.dbType || 'mysql';
+  if (dbType === 'mysql') {
+    return mysql.createConnection({
+      host: cfg.host,
+      port: parseInt(cfg.port) || DB_TYPES.mysql.defaultPort,
+      user: cfg.user,
+      password: cfg.password,
+      database: cfg.database || 'gas_balance',
+      charset: 'utf8mb4',
+    });
+  }
+  // 后续扩展其他数据库
+  throw new Error('不支持的数据库类型: ' + dbType);
 }
 
 async function getConnectionInfo(side) {
@@ -209,6 +220,11 @@ async function handleSyncRequest(req, res, url) {
 
   // API endpoints
   try {
+    // DB types
+    if (path === '/api/sync/db-types' && method === 'GET') {
+      return json(res, DB_TYPES);
+    }
+
     // Config CRUD
     if (path === '/api/sync/config' && method === 'GET') {
       return json(res, getActive());
@@ -469,4 +485,5 @@ module.exports = {
   description: 'MySQL 数据库间表级数据同步，支持源/目标配置、按时间或全量同步',
   matchPath: (p) => p === '/sync' || p.startsWith('/api/sync'),
   handleRequest: handleSyncRequest,
+  DB_TYPES,
 };

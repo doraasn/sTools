@@ -29,45 +29,113 @@ try {
 // ==================== Server ====================
 
 function serveHome(res) {
+  // Card accent colors per module
+  const cardStyles = {
+    token: { accent: '#06b6d4', gradient: 'linear-gradient(135deg,rgba(6,182,212,.15),rgba(14,165,233,.05))' },
+    sync:  { accent: '#10b981', gradient: 'linear-gradient(135deg,rgba(16,185,129,.15),rgba(5,150,105,.05))' },
+  };
+
   let cards = '';
   for (const mod of modules) {
-    cards += `<a href="/${mod.name}" class="card">
+    const cs = cardStyles[mod.name] || { accent: '#a855f7', gradient: 'linear-gradient(135deg,rgba(168,85,247,.12),rgba(147,51,234,.04))' };
+    cards += `<a href="/${mod.name}" class="card" style="--accent:${cs.accent}">
+      <div class="card-bg" style="background:${cs.gradient}"></div>
       <div class="ci">${mod.icon || '🔧'}</div>
       <div class="ct">${mod.label || mod.name}</div>
       <div class="cd">${mod.description || ''}</div>
+      <div class="card-arrow">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </div>
     </a>`;
   }
 
   const html = `<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tool Hub</title>
+<title>sTools</title>
 <style>
 *,*::after,*::before{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0c0a09;--s:#1c1917;--s2:#292524;--b:#44403c;--t:#e7e5e4;--t2:#a8a29e;--a:#06b6d4;--r:8px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif}
-[data-theme="light"]{--bg:#fafaf9;--s:#fff;--s2:#f5f5f4;--b:#d6d3d1;--t:#1c1917;--t2:#78716c;--a:#0891b2}
-body{font-family:var(--font);background:var(--bg);color:var(--t);min-height:100vh;display:flex;align-items:center;justify-content:center}
-.hub{text-align:center;padding:40px 20px;max-width:800px}
-h1{font-size:28px;font-weight:700;letter-spacing:-.03em;margin-bottom:6px}
-.sub{color:var(--t2);font-size:14px;margin-bottom:32px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
-.card{display:block;background:var(--s);border:1px solid var(--b);border-radius:var(--r);padding:24px 16px;text-decoration:none;color:var(--t);transition:all .15s;cursor:pointer}
-.card:hover{border-color:var(--a);transform:translateY(-2px);box-shadow:0 4px 20px rgba(6,182,212,.1)}
-.ci{font-size:36px;margin-bottom:10px}
-.ct{font-size:16px;font-weight:600;margin-bottom:4px}
-.cd{font-size:13px;color:var(--t2);line-height:1.5}
-.ft{margin-top:32px;font-size:12px;color:var(--t2)}
-.ft a{color:var(--a);text-decoration:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+@keyframes glow{0%,100%{opacity:.4}50%{opacity:.8}}
+:root{--bg:#0a0a0f;--s:#13131a;--s2:#1c1c28;--b:#2a2a3a;--t:#e8e8ed;--t2:#88889a;--t3:#5c5c70;--a:#06b6d4;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--t);min-height:100vh;overflow-x:hidden}
+/* Animated background */
+.bg-effects{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.bg-effects .orb{position:absolute;border-radius:50%;filter:blur(100px);opacity:.15}
+.bg-effects .orb:nth-child(1){width:600px;height:600px;background:#06b6d4;top:-200px;left:-200px;animation:float 12s ease-in-out infinite}
+.bg-effects .orb:nth-child(2){width:500px;height:500px;background:#10b981;bottom:-150px;right:-100px;animation:float 16s ease-in-out infinite reverse}
+.bg-effects .orb:nth-child(3){width:400px;height:400px;background:#a855f7;top:50%;left:50%;transform:translate(-50%,-50%);animation:glow 8s ease-in-out infinite}
+/* Header */
+.header{position:relative;z-index:1;text-align:center;padding:48px 20px 0}
+.header .logo{font-size:48px;margin-bottom:4px;display:block}
+.header h1{font-size:36px;font-weight:800;letter-spacing:-.04em;background:linear-gradient(135deg,#e8e8ed 0%,#88889a 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px}
+.header .subtitle{font-size:15px;color:var(--t2);font-weight:400}
+.header .subtitle span{color:var(--t3);margin:0 8px}
+/* Search/Cmd hint */
+.cmd-hint{position:relative;z-index:1;text-align:center;margin:28px auto 0;max-width:480px;padding:0 20px}
+.cmd-hint .hint-box{background:var(--s);border:1px solid var(--b);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--t3);display:flex;align-items:center;justify-content:center;gap:8px}
+.cmd-hint .hint-box kbd{background:var(--s2);border:1px solid var(--b);border-radius:4px;padding:1px 6px;font-size:11px;font-family:inherit;color:var(--t2)}
+/* Grid */
+.grid-wrap{position:relative;z-index:1;max-width:820px;margin:36px auto;padding:0 20px 40px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+/* Card */
+.card{position:relative;display:block;background:var(--s);border:1px solid var(--b);border-radius:14px;padding:28px 24px 24px;text-decoration:none;color:var(--t);transition:all .25s cubic-bezier(.4,0,.2,1);cursor:pointer;overflow:hidden;animation:fadeUp .5s ease-out both}
+.card:nth-child(1){animation-delay:.1s}
+.card:nth-child(2){animation-delay:.2s}
+.card:nth-child(3){animation-delay:.3s}
+.card:nth-child(4){animation-delay:.4s}
+.card:nth-child(5){animation-delay:.5s}
+.card:nth-child(6){animation-delay:.6s}
+.card::before{content:'';position:absolute;inset:0;border-radius:14px;border:1px solid transparent;transition:all .3s;pointer-events:none}
+.card:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 8px 40px color-mix(in srgb,var(--accent) 12%,transparent)}
+.card:hover::before{border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+.card-bg{position:absolute;inset:0;border-radius:14px;pointer-events:none;transition:opacity .3s;opacity:0}
+.card:hover .card-bg{opacity:1}
+.ci{font-size:40px;margin-bottom:10px;position:relative;display:inline-block}
+.card:hover .ci{animation:float 2s ease-in-out infinite}
+.ct{font-size:17px;font-weight:600;position:relative;margin-bottom:6px}
+.cd{font-size:13px;color:var(--t2);line-height:1.6;position:relative;max-width:90%}
+.card-arrow{position:absolute;bottom:20px;right:20px;color:var(--t3);transition:all .3s;opacity:0;transform:translateX(-8px)}
+.card:hover .card-arrow{opacity:1;color:var(--accent);transform:translateX(0)}
+/* Footer */
+.ft{position:relative;z-index:1;text-align:center;padding:0 20px 40px;font-size:13px;color:var(--t3)}
+.ft a{color:var(--t2);text-decoration:none;transition:color .2s}
+.ft a:hover{color:var(--accent)}
+.ft .dot{margin:0 10px;color:var(--t3)}
+/* Responsive */
+@media(max-width:560px){.grid{grid-template-columns:1fr}.header h1{font-size:28px}.header .logo{font-size:36px}}
 </style>
 </head>
 <body>
-<div class="hub">
-  <h1>🔧 Tool Hub</h1>
-  <p class="sub">选择工具</p>
+<div class="bg-effects">
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="orb"></div>
+</div>
+
+<div class="header">
+  <span class="logo">⚡</span>
+  <h1>sTools</h1>
+  <p class="subtitle">工具箱<span>·</span>效率工具集</p>
+</div>
+
+<div class="cmd-hint">
+  <div class="hint-box">
+    <kbd>1</kbd> <kbd>2</kbd> 在模块内按数字键快速导航 · <kbd>Q</kbd> 退出
+  </div>
+</div>
+
+<div class="grid-wrap">
   <div class="grid">${cards}</div>
-  <p class="ft"><a href="https://github.com/doraasn/token-kanban" target="_blank">GitHub</a></p>
+</div>
+
+<div class="ft">
+  <a href="https://github.com/doraasn/sTools" target="_blank">GitHub</a>
+  <span class="dot">·</span> v1.0
+  <span class="dot">·</span> 127.0.0.1:${PORT}
 </div>
 </body>
 </html>`;
