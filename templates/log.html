@@ -9,7 +9,7 @@
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
   }
-  .hdr h1 { font-size: 20px; font-weight: 600; }
+  .hdr h1 { font-size: 24px; font-weight: 700; }
   .hdr-actions { display: flex; gap: 8px; align-items: center; }
   .hdr-actions .btn.active { background: var(--a); color: #fff; border-color: var(--a); }
 
@@ -27,11 +27,6 @@
 
   /* 级别筛选（继承 .ui-chip） */
   .level-filters { display: flex; gap: 4px; }
-  .level-btn.act { color: #fff; border-color: transparent; }
-  .level-btn.act[data-level="info"] { background: var(--info); }
-  .level-btn.act[data-level="ok"] { background: var(--ok); }
-  .level-btn.act[data-level="warn"] { background: var(--warn); }
-  .level-btn.act[data-level="err"] { background: var(--err); }
 
   /* 日志容器（继承 .ui-panel） */
   .log-container { overflow: hidden; }
@@ -88,7 +83,7 @@
     <h1>日志</h1>
     <div class="hdr-actions">
       <button class="btn" id="autoScrollBtn" onclick="toggleAutoScroll()">自动滚动</button>
-      <button class="btn" id="themeBtn" onclick="toggleTheme()">切换主题</button>
+      <button class="btn" onclick="copyLogs()">复制</button>
       <button class="btn" onclick="clearLogs()">清空</button>
     </div>
   </div>
@@ -96,10 +91,10 @@
   <div class="search-bar">
     <input class="ui-input search-input" id="searchInput" placeholder="搜索日志内容..." oninput="renderLogs()">
     <div class="level-filters">
-      <div class="ui-chip level-btn act" data-level="info" onclick="toggleLevel(this)">信息</div>
-      <div class="ui-chip level-btn act" data-level="ok" onclick="toggleLevel(this)">成功</div>
-      <div class="ui-chip level-btn act" data-level="warn" onclick="toggleLevel(this)">警告</div>
-      <div class="ui-chip level-btn act" data-level="err" onclick="toggleLevel(this)">错误</div>
+      <div class="ui-chip active info-chip" data-level="info" onclick="toggleLevel(this)">信息</div>
+      <div class="ui-chip active ok-chip" data-level="ok" onclick="toggleLevel(this)">成功</div>
+      <div class="ui-chip active warn-chip" data-level="warn" onclick="toggleLevel(this)">警告</div>
+      <div class="ui-chip active err-chip" data-level="err" onclick="toggleLevel(this)">错误</div>
     </div>
   </div>
 
@@ -125,21 +120,6 @@ let activeLevels = new Set(['info', 'ok', 'warn', 'err']);
 let lastTs = 0;
 let pollTimer = null;
 
-/* 主题 */
-function initTheme() {
-  try {
-    const saved = localStorage.getItem('csd-theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
-  } catch {}
-}
-
-function toggleTheme() {
-  const cur = document.documentElement.getAttribute('data-theme');
-  const next = cur === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', next);
-  try { localStorage.setItem('csd-theme', next); } catch {}
-}
-
 /* 自动滚动 */
 function toggleAutoScroll() {
   autoScroll = !autoScroll;
@@ -151,55 +131,15 @@ function toggleLevel(el) {
   const level = el.dataset.level;
   if (activeLevels.has(level)) {
     activeLevels.delete(level);
-    el.classList.remove('act');
+    el.classList.remove('active', 'info-chip', 'ok-chip', 'warn-chip', 'err-chip');
   } else {
     activeLevels.add(level);
-    el.classList.add('act');
+    el.classList.add('active', level + '-chip');
   }
   renderLogs();
 }
 
-/* 搜索高亮 */
-function highlightText(text, query) {
-  if (!query) return escHtml(text);
-  const escaped = escHtml(text);
-  const lower = escaped.toLowerCase();
-  const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!keywords.length) return escaped;
 
-  const ranges = [];
-  keywords.forEach(kw => {
-    let start = 0;
-    while (true) {
-      const idx = lower.indexOf(kw, start);
-      if (idx < 0) break;
-      ranges.push([idx, idx + kw.length]);
-      start = idx + 1;
-    }
-  });
-
-  if (!ranges.length) return escaped;
-
-  ranges.sort((a, b) => a[0] - b[0]);
-  const merged = [ranges[0]];
-  for (let i = 1; i < ranges.length; i++) {
-    const last = merged[merged.length - 1];
-    if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
-    else merged.push(ranges[i]);
-  }
-
-  let result = '', pos = 0;
-  merged.forEach(([s, e]) => {
-    result += escaped.substring(pos, s) + '<mark>' + escaped.substring(s, e) + '</mark>';
-    pos = e;
-  });
-  result += escaped.substring(pos);
-  return result;
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 /* 渲染日志 */
 function renderLogs() {
@@ -259,6 +199,7 @@ async function clearLogs() {
     logs = [];
     lastTs = 0;
     renderLogs();
+    window.dispatchEvent(new CustomEvent('logscleared'));
   } catch {}
 }
 
@@ -277,6 +218,9 @@ async function copyLogs() {
   const text = filtered.map(e => e.time + ' [' + e.level.toUpperCase() + '] [' + e.source + '] ' + e.msg).join('\n');
   try {
     await navigator.clipboard.writeText(text);
+    const btn = document.querySelector('.hdr-actions .btn:nth-child(2)');
+    btn.textContent = '已复制 ✓';
+    setTimeout(() => { btn.textContent = '复制'; }, 1500);
   } catch {
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta);
@@ -287,7 +231,6 @@ async function copyLogs() {
 
 /* 初始化 */
 async function init() {
-  initTheme();
   $('autoScrollBtn').classList.add('active');
 
   // 首次加载全部日志

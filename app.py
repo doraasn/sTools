@@ -29,23 +29,34 @@ _static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 os.makedirs(_static_dir, exist_ok=True)
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 MODULES = []
-
-# 用于控制台 stop/restart 的服务线程引用
-_server_thread = None
-_server_ready = threading.Event()
+MODULE_PRIORITY = ['token', 'sync', 'log']
 
 
 def load_modules():
-    """扫描 modules/ 目录，加载实现了 register(app) 的模块"""
+    """扫描 modules/ 目录，按优先级加载实现了 register(app) 的模块"""
     modules_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'modules')
     if not os.path.isdir(modules_dir):
         return
 
-    for fname in sorted(os.listdir(modules_dir)):
+    # 收集所有可用模块名
+    available = []
+    for fname in os.listdir(modules_dir):
         if not fname.endswith('.py') or fname in ('__init__.py', 'common.py'):
             continue
-        mod_name = fname[:-3]
+        available.append(fname[:-3])
+
+    # 按优先级排序：先在 MODULE_PRIORITY 中的按序排列，其余按字母序排到末尾
+    def sort_key(name):
+        try:
+            return (0, MODULE_PRIORITY.index(name), '')
+        except ValueError:
+            return (1, 0, name)
+
+    available.sort(key=sort_key)
+
+    for mod_name in available:
         try:
             mod = importlib.import_module(f'modules.{mod_name}')
             if hasattr(mod, 'register') and hasattr(mod, 'MODULE_INFO'):

@@ -24,7 +24,11 @@ MODULE_INFO = {
 }
 
 sync_bp = Blueprint('sync', __name__)
-CONFIG_FILE = 'sync_config.json'  # 已废弃，保留用于向后兼容迁移
+
+# 支持的数据库类型
+DB_TYPES = {
+    'mysql': {'label': 'MySQL', 'defaultPort': 3306},
+}
 
 
 # ========== 配置管理 ==========
@@ -190,10 +194,10 @@ def save_active_config(config_data, table_config_data):
 
 # ========== 数据库连接 ==========
 
-def connect_db(cfg):
+def connect_db(cfg, db_type='mysql'):
     return mysql.connector.connect(
         host=cfg.get('host', '127.0.0.1'),
-        port=int(cfg.get('port', 3306)),
+        port=int(cfg.get('port', DB_TYPES.get(db_type, {}).get('defaultPort', 3306))),
         user=cfg.get('user', 'root'),
         password=cfg.get('password', ''),
         database=cfg.get('database', 'gas_balance'),
@@ -224,6 +228,11 @@ def api_sync_config_post():
     result = save_active_config(d.get('config'), d.get('tableConfig'))
     log_collector.add(log_collector.INFO, 'sync', '同步配置已保存')
     return jsonify(result)
+
+
+@sync_bp.route('/api/sync/db-types', methods=['GET'])
+def api_db_types():
+    return jsonify(DB_TYPES)
 
 
 @sync_bp.route('/api/sync/config/exists', methods=['GET'])

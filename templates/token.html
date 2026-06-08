@@ -12,14 +12,11 @@
 <style>
   /* ===== 工具切换（继承 .ui-chip） ===== */
   .ts { display: flex; gap: 6px; margin-bottom: 16px; }
-  .tc.act { background: var(--a); color: #fff; border-color: var(--a); }
 
   /* ===== 头部（.bi 继承 .btn） ===== */
   .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  .hdr h1 { font-size: 22px; font-weight: 700; }
+  .hdr h1 { font-size: 26px; font-weight: 700; }
   .ac { display: flex; gap: 6px; }
-  .bi { width: 32px; height: 32px; padding: 0; justify-content: center; }
-  .bi svg { width: 16px; height: 16px; }
 
   /* ===== 统计卡片 ===== */
   .sg { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -27,7 +24,6 @@
     background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
     padding: 14px 16px; position: relative; overflow: hidden;
   }
-  .sc .v { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
   .sc .v { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
   .sc .l { font-size: 12px; color: var(--t2); }
   .sc .sub { font-size: 11px; color: var(--t2); margin-top: 2px; }
@@ -39,7 +35,6 @@
   /* ===== 筛选栏（.fc 继承 .ui-chip） ===== */
   .fb { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
   .fg { display: flex; gap: 4px; flex-wrap: wrap; }
-  .fc.act { background: var(--a); color: #fff; border-color: var(--a); }
   .refresh-info { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--t2); }
 
   /* ===== 图表卡片 ===== */
@@ -61,8 +56,8 @@
 
   /* ===== 饼图行 ===== */
   .pr { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  .pie-wrap { text-align: center; }
-  .pie-wrap canvas { max-width: 100%; }
+  .pie-wrap { text-align: center; overflow: visible; }
+  .pie-wrap canvas { max-width: 100%; overflow: visible; }
   @media (max-width: 700px) { .pr { grid-template-columns: 1fr; } }
 
   /* ===== 指标条 ===== */
@@ -118,15 +113,10 @@
   .cal-table td.in-range-end { border-radius: 0 4px 4px 0; }
 
   /* ===== 设置弹窗（继承 .ui-modal-overlay / .ui-modal） ===== */
-  .modal-overlay { display: none; }
-  .modal-overlay.show { display: flex; }
-  .modal { padding: 24px; }
-  .modal h2 { font-size: 16px; margin-bottom: 16px; }
   .msec { margin-bottom: 16px; }
   .msec h4 { font-size: 13px; color: var(--t2); margin-bottom: 8px; }
   .mrow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .mrow label { font-size: 12px; min-width: 80px; }
-  .mb { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
   /* ===== Loading Overlay ===== */
   .loading-overlay {
@@ -147,18 +137,10 @@
 
 {% block content %}
 <div class="page-content">
-  <!-- 工具切换 -->
-  <div class="ts" id="toolSwitcher"></div>
-
   <!-- 头部 -->
   <div class="hdr">
     <h1>Token 看板</h1>
     <div class="ac">
-      <button class="btn bi" id="themeBtn" title="切换主题">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-        </svg>
-      </button>
       <button class="btn bi" id="settingsBtn" title="设置">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
@@ -166,6 +148,9 @@
       </button>
     </div>
   </div>
+
+  <!-- 工具切换 -->
+  <div class="ts" id="toolSwitcher"></div>
 
   <!-- 筛选栏 -->
   <div id="filters" class="fb"></div>
@@ -206,7 +191,7 @@ const COLORS = ['#06b6d4','#f59e0b','#10b981','#f43f5e','#8b5cf6',
                 '#ec4899','#14b8a6','#e9730f','#6366f1','#84cc16','#d946ef','#22c55e'];
 
 let data = null, rawData = null;
-let chDailyHidden = new Set(), chModelBarHidden = new Set();
+let chDailyHidden = new Set();
 let dateFilter = { type: 'all', start: '', end: '' };
 let currentTool = 'claude';
 let refreshInterval = null, switchingTool = false;
@@ -214,7 +199,7 @@ let lastDataHash = '';
 let traePaths = {};
 let displayNames = {}, hiddenProjects = [];
 let calState = { year: 0, month: 0, start: null, end: null };
-let dailyChart = null, modelBarChart = null, modelPieChart = null, projectPieChart = null;
+let dailyChart = null, modelPieChart = null, projectPieChart = null;
 
 /* ===== 工具函数 ===== */
 function fmt(v) {
@@ -223,7 +208,6 @@ function fmt(v) {
   return String(Math.round(v));
 }
 
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
@@ -245,7 +229,7 @@ const TOOLS = [
 
 function renderToolSwitcher() {
   $('toolSwitcher').innerHTML = TOOLS.map(t =>
-    `<div class="ui-chip tc${t.key === currentTool ? ' act' : ''}" data-tool="${t.key}">${t.label}</div>`
+    `<div class="ui-chip${t.key === currentTool ? ' active' : ''}" data-tool="${t.key}">${t.label}</div>`
   ).join('');
 }
 
@@ -290,12 +274,12 @@ function renderFilters() {
   ];
   let html = '<div class="fg">';
   presets.forEach(p => {
-    html += `<div class="ui-chip fc${dateFilter.type === p.type ? ' act' : ''}" data-date="${p.type}">${p.label}</div>`;
+    html += `<div class="ui-chip${dateFilter.type === p.type ? ' active' : ''}" data-date="${p.type}">${p.label}</div>`;
   });
   // 日历选择器
   const calLabel = dateFilter.type === 'range'
     ? `${dateFilter.start} ~ ${dateFilter.end}` : '选择日期';
-  html += `<div class="ui-chip fc${dateFilter.type === 'range' ? ' act' : ''}" id="calTrigger">${calLabel}</div>`;
+  html += `<div class="ui-chip${dateFilter.type === 'range' ? ' active' : ''}" id="calTrigger">${calLabel}</div>`;
   html += '</div>';
 
   // 刷新信息
@@ -432,32 +416,22 @@ function renderAll() {
   html += '</div>';
 
   // 每日趋势图
-  html += `<div class="cc"><h3>每日 Token 趋势</h3><div style="position:relative;height:320px"><canvas id="chDaily"></canvas></div><div class="legend" id="legDaily"></div></div>`;
+  html += `<div class="cc"><h3>每日 Token 趋势</h3><div class="legend" id="legDaily"></div><div style="position:relative;height:320px"><canvas id="chDaily"></canvas></div></div>`;
 
   // 饼图（仅 Claude）
   if (isClaude) {
     html += `<div class="pr">
-      <div class="cc"><h3>模型分布</h3><div class="pie-wrap" style="position:relative;height:220px"><canvas id="chModel"></canvas></div><div class="legend" id="legModel"></div></div>
-      <div class="cc"><h3>项目分布</h3><div class="pie-wrap" style="position:relative;height:220px"><canvas id="chProject"></canvas></div><div class="legend" id="legProject"></div></div>
+      <div class="cc"><h3>模型分布</h3><div class="pie-wrap" style="position:relative;height:280px"><canvas id="chModel"></canvas></div><div class="legend" id="legModel"></div></div>
+      <div class="cc"><h3>项目分布</h3><div class="pie-wrap" style="position:relative;height:280px"><canvas id="chProject"></canvas></div><div class="legend" id="legProject"></div></div>
     </div>`;
   }
 
-  // 模型水平条形图
-  const barH = Math.max(60, models.length * 44 + 40);
-  html += `<div class="cc"><h3>模型 Token 总量</h3><div style="position:relative;height:${barH}px"><canvas id="chModelBar"></canvas></div>
-    <div class="legend" id="legModelBar"></div>
-    <div class="indicators">
-      <div class="ind"><div class="ind-dot" style="background:#3b82f6"></div>输入</div>
-      <div class="ind"><div class="ind-dot" style="background:#a78bfa"></div>缓存命中</div>
-      <div class="ind"><div class="ind-dot" style="background:#f97316"></div>输出</div>
-    </div>
-  </div>`;
+
 
   $('main').innerHTML = html;
 
   // 绘制图表
   drawDaily(cells, models);
-  drawModelBars(models);
   if (isClaude) {
     drawPie('chModel', models, m => m.name, m => m.total, 'legModel');
     drawPie('chProject', projects, p => p.name, p => p.total, 'legProject');
@@ -495,13 +469,18 @@ function drawDaily(cells, models) {
   const dates = Object.keys(dateMap).sort();
   if (!dates.length) { if (dailyChart) { dailyChart.destroy(); dailyChart = null; } return; }
 
+  // 完整模型列表（按总量排序，颜色索引与图例一致）
+  const modelColorMap = {};
+  models.forEach((m, mi) => { modelColorMap[m.name] = COLORS[mi % COLORS.length]; });
+
   // 获取可见模型列表
-  const visibleModels = [...new Set(cells.filter(c => !chDailyHidden.has(c.model)).map(c => c.model))].sort();
+  const visibleModels = models.filter(m => !chDailyHidden.has(m.name)).map(m => m.name);
+  if (!visibleModels.length) { if (dailyChart) { dailyChart.destroy(); dailyChart = null; } return; }
 
   // 构建 Chart.js 数据集
   const datasets = [];
-  visibleModels.forEach((model, mi) => {
-    const baseColor = COLORS[mi % COLORS.length];
+  visibleModels.forEach((model) => {
+    const baseColor = modelColorMap[model];
     // 输入（缓存未命中）
     datasets.push({
       label: model + ' 输入',
@@ -509,6 +488,8 @@ function drawDaily(cells, models) {
       backgroundColor: baseColor,
       stack: 'stack',
       barPercentage: 0.7,
+      hoverBorderWidth: 2,
+      hoverBorderColor: '#fff',
     });
     // 缓存命中
     datasets.push({
@@ -517,6 +498,8 @@ function drawDaily(cells, models) {
       backgroundColor: lightenColor(baseColor, 0.45),
       stack: 'stack',
       barPercentage: 0.7,
+      hoverBorderWidth: 2,
+      hoverBorderColor: '#fff',
     });
     // 输出
     datasets.push({
@@ -525,6 +508,8 @@ function drawDaily(cells, models) {
       backgroundColor: lightenColor(baseColor, 0.2),
       stack: 'stack',
       barPercentage: 0.7,
+      hoverBorderWidth: 2,
+      hoverBorderColor: '#fff',
     });
   });
 
@@ -542,11 +527,30 @@ function drawDaily(cells, models) {
             title: (items) => items[0]?.label || '',
             label: (item) => {
               const parts = item.dataset.label.split(' ');
-              return `${parts[0]} ${parts[1]}: ${fmt(item.raw)}`;
+              const segLabel = parts.slice(1).join(' ');
+              return `${parts[0]} ${segLabel}: ${fmt(item.raw)}`;
             },
             afterBody: (items) => {
-              const total = items.reduce((s, i) => s + i.raw, 0);
-              return `合计: ${fmt(total)}`;
+              const idx = items[0]?.dataIndex;
+              if (idx === undefined || !dates[idx]) return [];
+              const day = dateMap[dates[idx]];
+              if (!day) return [];
+              let inpMiss = 0, cacheHit = 0, out = 0;
+              Object.keys(day).forEach(model => {
+                inpMiss += day[model].input + day[model].cacheCreate;
+                cacheHit += day[model].cacheRead;
+                out += day[model].output;
+              });
+              const total = inpMiss + cacheHit + out;
+              const totalInp = inpMiss + cacheHit;
+              const rate = totalInp > 0 ? (cacheHit / totalInp * 100).toFixed(1) : '0.0';
+              return [
+                `输入(未命中): ${fmt(inpMiss)}`,
+                `输入(命中): ${fmt(cacheHit)}`,
+                `输出: ${fmt(out)}`,
+                `合计: ${fmt(total)}`,
+                `缓存命中率: ${rate}%`
+              ];
             },
           },
         },
@@ -568,104 +572,57 @@ function drawDaily(cells, models) {
         },
       },
     },
+    plugins: [{
+      id: 'dailyTopLabels',
+      afterDraw(chart) {
+        const { ctx, chartArea } = chart;
+        const tc = getThemeColors();
+        ctx.save();
+        ctx.textAlign = 'center';
+        for (let i = 0; i < dates.length; i++) {
+          const day = dateMap[dates[i]];
+          if (!day) continue;
+          let inpMiss = 0, cacheHit = 0, out = 0;
+          Object.keys(day).forEach(model => {
+            inpMiss += day[model].input + day[model].cacheCreate;
+            cacheHit += day[model].cacheRead;
+            out += day[model].output;
+          });
+          const total = inpMiss + cacheHit + out;
+          if (total === 0) continue;
+          const lastMeta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+          const bar = lastMeta.data[i];
+          if (!bar || bar.hidden || bar.y - 22 <= chartArea.top) continue;
+          const totalInp = inpMiss + cacheHit;
+          const rate = totalInp > 0 ? (cacheHit / totalInp * 100).toFixed(1) : '0.0';
+          // 第 1 行：合计
+          ctx.fillStyle = tc.text;
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`合计 ${fmt(total)}`, bar.x, bar.y - 2);
+          // 第 2 行：命中/未命中/输出/命中率
+          ctx.fillStyle = tc.text2;
+          ctx.font = '8px sans-serif';
+          ctx.fillText(`↑${fmt(cacheHit)} ↓${fmt(inpMiss)} →${fmt(out)} | ${rate}%`, bar.x, bar.y - 14);
+        }
+        ctx.restore();
+      },
+    }],
   });
 
   // 图例
-  renderDailyLegend(visibleModels);
+  renderDailyLegend(models);
 }
 
 function renderDailyLegend(models) {
   const el = $('legDaily');
   if (!el) return;
   el.innerHTML = models.map((m, i) => {
-    const hidden = chDailyHidden.has(m);
-    return `<div class="li${hidden ? ' hidden' : ''}" data-filter="daily:${m}">
-      <div class="d" style="background:${COLORS[i % COLORS.length]}"></div>${esc(m)}
+    const hidden = chDailyHidden.has(m.name);
+    return `<div class="li${hidden ? ' hidden' : ''}" data-filter="daily:${m.name}">
+      <div class="d" style="background:${COLORS[i % COLORS.length]}"></div>${escHtml(m.name)}
     </div>`;
   }).join('');
-}
-
-/* ===== 模型水平条形图 ===== */
-function drawModelBars(models) {
-  const canvas = $('chModelBar');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const tc = getThemeColors();
-
-  const visible = models.filter(m => !chModelBarHidden.has(m.name));
-  if (!visible.length) { if (modelBarChart) { modelBarChart.destroy(); modelBarChart = null; } return; }
-
-  const datasets = [
-    {
-      label: '输入',
-      data: visible.map(m => m.input + m.cacheCreate),
-      backgroundColor: '#3b82f6',
-    },
-    {
-      label: '缓存命中',
-      data: visible.map(m => m.cacheRead),
-      backgroundColor: '#a78bfa',
-    },
-    {
-      label: '输出',
-      data: visible.map(m => m.output),
-      backgroundColor: '#f97316',
-    },
-  ];
-
-  if (modelBarChart) modelBarChart.destroy();
-  modelBarChart = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: visible.map(m => m.name), datasets },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (item) => `${item.dataset.label}: ${fmt(item.raw)}`,
-            afterBody: (items) => {
-              const idx = items[0]?.dataIndex;
-              if (idx !== undefined) {
-                const m = visible[idx];
-                const total = m.total;
-                const rate = (m.input + m.cacheRead) > 0
-                  ? (m.cacheRead / (m.input + m.cacheRead) * 100).toFixed(1) : '0.0';
-                return [`合计: ${fmt(total)}`, `缓存命中率: ${rate}%`];
-              }
-              return [];
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { color: tc.text2, font: { size: 11 }, callback: v => fmt(v) },
-          grid: { color: tc.grid + '40' },
-        },
-        y: {
-          stacked: true,
-          ticks: { color: tc.text2, font: { size: 12 } },
-          grid: { display: false },
-        },
-      },
-    },
-  });
-
-  // 图例
-  const el = $('legModelBar');
-  if (el) {
-    el.innerHTML = models.map((m, i) => {
-      const hidden = chModelBarHidden.has(m.name);
-      return `<div class="li${hidden ? ' hidden' : ''}" data-filter="modelbar:${m.name}">
-        <div class="d" style="background:${COLORS[i % COLORS.length]}"></div>${esc(m.name)}
-        <span class="pct">${m.share}%</span>
-      </div>`;
-    }).join('');
-  }
 }
 
 /* ===== 饼图 ===== */
@@ -694,12 +651,13 @@ function drawPie(canvasId, items, nameFn, valFn, legendId) {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }],
+      datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverBorderWidth: 3, hoverBorderColor: '#fff', hoverOffset: 8 }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       cutout: '38%',
+      layout: { padding: 14 },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -725,7 +683,7 @@ function drawPie(canvasId, items, nameFn, valFn, legendId) {
     legendEl.innerHTML = filtered.map((item, i) => {
       const pct = total > 0 ? ((valFn(item) / total) * 100).toFixed(1) : '0.0';
       return `<div class="li" data-filter="pie:${nameFn(item)}">
-        <div class="d" style="background:${colors[i]}"></div>${esc(nameFn(item))}
+        <div class="d" style="background:${colors[i]}"></div>${escHtml(nameFn(item))}
         <span class="pct">${pct}%</span>
       </div>`;
     }).join('');
@@ -814,11 +772,13 @@ function renderSettings() {
     const projects = rawData?.projects || [];
     projects.forEach(p => {
       const hidden = hiddenProjects.includes(p.name);
-      const name = displayNames[p.name] || p.name;
+      const origName = p.name;
+      const displayName = displayNames[p.name] || p.name;
+      const renamed = displayName !== origName;
       html += `<div class="mrow">
-        <input type="checkbox" class="ui-checkbox" ${hidden ? '' : 'checked'} data-sproj="${esc(p.name)}">
-        <input type="text" class="ui-input-sm" value="${esc(name)}" data-sname="${esc(p.name)}" style="max-width:200px">
-        <span style="font-size:11px;color:var(--t2)">${fmt(p.total)}</span>
+        <input type="checkbox" class="ui-checkbox" ${hidden ? '' : 'checked'} data-sproj="${escHtml(origName)}">
+        <input type="text" class="ui-input-sm" value="${escHtml(displayName)}" data-sname="${escHtml(origName)}" style="max-width:200px">
+        ${renamed ? `<span style="font-size:10px;color:var(--t3)">${escHtml(origName)}</span>` : ''}
       </div>`;
     });
     html += '</div>';
@@ -826,7 +786,7 @@ function renderSettings() {
     const toolLabel = currentTool === 'trae-intl' ? 'Trae' : 'Trae CN';
     const toolKey = currentTool;
     html += `<div class="msec"><h4>${toolLabel} 日志路径</h4>`;
-    html += `<div class="mrow"><input type="text" class="ui-input-sm" id="traePathInput" value="${esc(traePaths[toolKey] || '')}" placeholder="留空使用默认路径"></div>`;
+    html += `<div class="mrow"><input type="text" class="ui-input-sm" id="traePathInput" value="${escHtml(traePaths[toolKey] || '')}" placeholder="留空使用默认路径"></div>`;
     html += '</div>';
   }
   $('settingsBody').innerHTML = html;
@@ -863,6 +823,7 @@ async function init() {
     traePaths = await api('/api/config');
   } catch {}
 
+  $('loadingOverlay').classList.add('show');
   try {
     const raw = await api(`/api/tokens?tool=${currentTool}`);
     rawData = raw;
@@ -872,7 +833,9 @@ async function init() {
     renderAll();
     updateRefreshTime();
   } catch (e) {
-    $('main').innerHTML = `<div class="ld">加载失败: ${esc(e.message)}</div>`;
+    $('main').innerHTML = `<div class="ld">加载失败: ${escHtml(e.message)}</div>`;
+  } finally {
+    $('loadingOverlay').classList.remove('show');
   }
 
   // 5 秒轮询
@@ -880,32 +843,18 @@ async function init() {
 }
 
 /* ===== 主题切换 ===== */
-function initTheme() {
-  try {
-    const saved = localStorage.getItem('csd-theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
-  } catch {}
-  updateThemeBtn();
-}
-
-function updateThemeBtn() {
-  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  $('themeBtn').innerHTML = isDark
-    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>'
-    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
-}
 
 /* ===== 事件委托 ===== */
 document.addEventListener('click', async (e) => {
   const target = e.target;
 
   // 工具切换
-  const tc = target.closest('.tc[data-tool]');
+  const tc = target.closest('.ui-chip[data-tool]');
   if (tc) {
     const tool = tc.dataset.tool;
     if (tool === currentTool || switchingTool) return;
     currentTool = tool;
-    chDailyHidden.clear(); chModelBarHidden.clear();
+    chDailyHidden.clear();
     dateFilter = { type: 'all', start: '', end: '' };
     switchingTool = true;
     if (refreshInterval) clearInterval(refreshInterval);
@@ -925,7 +874,7 @@ document.addEventListener('click', async (e) => {
       renderAll();
       updateRefreshTime();
     } catch (err) {
-      $('main').innerHTML = `<div class="ld">${err.name === 'AbortError' ? '请求超时' : '加载失败: ' + esc(err.message)}</div>`;
+      $('main').innerHTML = `<div class="ld">${err.name === 'AbortError' ? '请求超时' : '加载失败: ' + escHtml(err.message)}</div>`;
     } finally {
       $('loadingOverlay').classList.remove('show');
       switchingTool = false;
@@ -935,7 +884,7 @@ document.addEventListener('click', async (e) => {
   }
 
   // 日期筛选
-  const dateChip = target.closest('.fc[data-date]');
+  const dateChip = target.closest('.ui-chip[data-date]');
   if (dateChip) {
     dateFilter = { type: dateChip.dataset.date, start: '', end: '' };
     const popup = $('calPopup'); if (popup) popup.remove();
@@ -986,11 +935,8 @@ document.addEventListener('click', async (e) => {
       chDailyHidden.has(name) ? chDailyHidden.delete(name) : chDailyHidden.add(name);
       const cells = getFilteredCells();
       drawDaily(cells, getModelTotals(cells));
-    } else if (type === 'modelbar') {
-      chModelBarHidden.has(name) ? chModelBarHidden.delete(name) : chModelBarHidden.add(name);
-      drawModelBars(getModelTotals(getFilteredCells()));
+      return;
     }
-    return;
   }
 
   // 刷新按钮
@@ -999,16 +945,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // 主题切换
-  if (target.closest('#themeBtn')) {
-    const current = document.documentElement.getAttribute('data-theme');
-    const next = current === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('csd-theme', next); } catch {}
-    updateThemeBtn();
-    renderAll();
-    return;
-  }
 
   // 设置按钮
   if (target.closest('#settingsBtn')) {
@@ -1018,7 +954,7 @@ document.addEventListener('click', async (e) => {
   }
 
   // 关闭设置弹窗
-  if (target.classList.contains('modal-overlay')) {
+  if (target.classList.contains('ui-modal-overlay')) {
     target.classList.remove('show');
     return;
   }
@@ -1060,7 +996,6 @@ document.addEventListener('click', async (e) => {
 });
 
 /* ===== 启动 ===== */
-initTheme();
 init();
 </script>
 {% endblock %}

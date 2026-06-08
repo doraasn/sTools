@@ -13,12 +13,24 @@
   {% block page_style %}{% endblock %}
 </head>
 <body>
+<script>
+  // 立即应用侧边栏折叠状态，防止页面加载闪烁
+  (function(){
+    var c = localStorage.getItem('dt_sb_collapsed');
+    if (c === '1') document.documentElement.classList.add('sb-collapsed');
+  })();
+</script>
 
   <!-- ===== 侧边栏 ===== -->
   <nav class="sidebar" id="sidebar">
     <div class="sb-header">
       <span class="sb-logo-text">dTools</span>
-      <button class="sb-toggle" id="sbToggle" title="收起/展开">◀</button>
+      <button class="sb-theme-btn" id="sbThemeBtn" onclick="toggleTheme()" title="切换主题">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+  </button>
+      <button class="sb-toggle" id="sbToggle" title="收起/展开">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
     </div>
     <div class="sb-search">
       <input type="text" id="sbSearchInput" placeholder="搜索工具..." oninput="filterTools(this.value)">
@@ -40,7 +52,9 @@
   <!-- ===== 全局日志面板 ===== -->
   <div class="log-panel" id="logPanel">
     <div class="lp-header">
-      <h4>📋 日志</h4>
+      <h4>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    日志</h4>
       <input class="lp-search" id="lpSearch" placeholder="搜索日志..." oninput="lpRender()">
       <div class="lp-levels">
         <button class="lp-lvl on" data-l="info" onclick="lpToggleLevel(this)">信息</button>
@@ -52,7 +66,12 @@
         <button class="lp-act on" id="lpAutoScroll" onclick="lpToggleAutoScroll()">自动滚动</button>
         <button class="lp-act" onclick="lpCopy()">复制</button>
         <button class="lp-act" onclick="lpClear()">清空</button>
-        <button class="lp-act" id="lpExpandBtn" onclick="lpToggleExpand()" title="全展开/还原">⛶</button>
+        <button class="lp-act" onclick="toggleLogPanel()" title="收起">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
+        <button class="lp-act" id="lpExpandBtn" onclick="lpToggleExpand()" title="全展开/还原">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+  </button>
       </div>
     </div>
     <div class="lp-body" id="lpBody">
@@ -115,10 +134,19 @@
 
   function initSidebar() {
     const sb = document.getElementById('sidebar');
-    if (sbCollapsed) { sb.classList.add('collapsed'); }
+    if (sbCollapsed) {
+      sb.classList.add('collapsed');
+      document.documentElement.classList.add('sb-collapsed');
+    }
     document.getElementById('sbToggle').addEventListener('click', () => {
       sb.classList.toggle('collapsed');
-      localStorage.setItem('dt_sb_collapsed', sb.classList.contains('collapsed') ? '1' : '0');
+      const isCollapsed = sb.classList.contains('collapsed');
+      localStorage.setItem('dt_sb_collapsed', isCollapsed ? '1' : '0');
+      if (isCollapsed) {
+        document.documentElement.classList.add('sb-collapsed');
+      } else {
+        document.documentElement.classList.remove('sb-collapsed');
+      }
     });
     renderSidebar();
   }
@@ -150,8 +178,10 @@
     const panel = document.getElementById('logPanel');
     const btn = document.getElementById('lpExpandBtn');
     const isFull = panel.classList.toggle('fullscreen');
-    btn.textContent = isFull ? '⊟' : '⛶';
     btn.title = isFull ? '收起' : '全展开';
+    btn.innerHTML = isFull
+      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3"/></svg>'
+      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>';
   }
 
   async function lpLoadLogs() {
@@ -219,27 +249,48 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  /* 语法高亮：数字、字符串、路径、URL、错误关键词 */
+  /* 语法高亮：收集所有匹配区间，统一构建输出，避免 HTML 标签内匹配 */
   function lpSyntax(text) {
+    // 收集所有高亮区间 (start, end, cssClass)
+    const ranges = [];
+    function addRange(match, offset, cls) {
+      ranges.push([offset, offset + match.length, cls]);
+    }
     // 错误/成功/警告关键词
-    text = text.replace(/\b(error|exception|traceback|failed|failure|errno)\b/gi, '<span class="hl-err">$1</span>');
-    text = text.replace(/\b(success|ok|done|completed|succeed)\b/gi, '<span class="hl-ok">$1</span>');
-    text = text.replace(/\b(warning|warn|timeout|retry|deprecated)\b/gi, '<span class="hl-warn">$1</span>');
+    text.replace(/\b(error|exception|traceback|failed|failure|errno)\b/gi, (m, o) => { addRange(m, o, 'hl-err'); return m; });
+    text.replace(/\b(success|ok|done|completed|succeed)\b/gi, (m, o) => { addRange(m, o, 'hl-ok'); return m; });
+    text.replace(/\b(warning|warn|timeout|retry|deprecated)\b/gi, (m, o) => { addRange(m, o, 'hl-warn'); return m; });
     // 布尔/空值
-    text = text.replace(/\b(true|false)\b/g, '<span class="hl-bool">$1</span>');
-    text = text.replace(/\b(null|none|undefined|nan)\b/gi, '<span class="hl-null">$1</span>');
-    // 数字（含小数、负数）
-    text = text.replace(/(?<![.\w])(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, '<span class="hl-num">$1</span>');
-    // 双引号字符串
-    text = text.replace(/&quot;([^&]*?)&quot;/g, '<span class="hl-str">&quot;$1&quot;</span>');
-    // 键名 (key: value)
-    text = text.replace(/(\w[\w]*)(?=\s*[:=])/g, '<span class="hl-key">$1</span>');
-    // 路径 (Windows / Unix)
-    text = text.replace(/([A-Z]:\\[\w\\.\/ -]+)/g, '<span class="hl-path">$1</span>');
-    text = text.replace(/(\/[\w./ -]{3,})/g, '<span class="hl-path">$1</span>');
+    text.replace(/\b(true|false)\b/g, (m, o) => { addRange(m, o, 'hl-bool'); return m; });
+    text.replace(/\b(null|none|undefined|nan)\b/gi, (m, o) => { addRange(m, o, 'hl-null'); return m; });
+    // 数字（含小数、负数、科学计数）
+    text.replace(/(?<![.\w])(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, (m, o) => { addRange(m, o, 'hl-num'); return m; });
+    // 双引号字符串（已 HTML 转义为 &quot;...&quot;）
+    text.replace(/&quot;([^&]*?)&quot;/g, (m, o) => { addRange(m, o, 'hl-str'); return m; });
+    // 键名 (key: value 或 key=value)
+    text.replace(/(\w[\w]*)(?=\s*[:=])/g, (m, o) => { addRange(m, o, 'hl-key'); return m; });
+    // 路径 (Windows)
+    text.replace(/([A-Z]:\\[\w\\.\/ -]+)/g, (m, o) => { addRange(m, o, 'hl-path'); return m; });
+    // 路径 (Unix)
+    text.replace(/(\/[\w.\/ -]{3,})/g, (m, o) => { addRange(m, o, 'hl-path'); return m; });
     // URL
-    text = text.replace(/(https?:\/\/[^\s<&]+)/g, '<span class="hl-url">$1</span>');
-    return text;
+    text.replace(/(https?:\/\/[^\s<&]+)/g, (m, o) => { addRange(m, o, 'hl-url'); return m; });
+    // 排序并去重（保留不重叠区间，先到先得）
+    ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const merged = [];
+    ranges.forEach(r => {
+      if (!merged.length || r[0] >= merged[merged.length - 1][1]) {
+        merged.push(r);
+      }
+    });
+    // 单次遍历构建输出
+    let result = '', pos = 0;
+    merged.forEach(([s, e, cls]) => {
+      result += text.substring(pos, s) + '<span class="' + cls + '">' + text.substring(s, e) + '</span>';
+      pos = e;
+    });
+    result += text.substring(pos);
+    return result;
   }
 
   function lpHighlight(text, q) {
@@ -289,10 +340,92 @@
   }
 
   /* ========================================
+     主题切换（全局统一）
+     ======================================== */
+  function initTheme() {
+    try {
+      const saved = localStorage.getItem('dt-theme') || localStorage.getItem('csd-theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+        localStorage.setItem('dt-theme', saved);
+      }
+    } catch {}
+  }
+
+  function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme');
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('dt-theme', next); } catch {}
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: next } }));
+  }
+
+  /* ========================================
+     弹窗工具
+     ======================================== */
+  function showModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('show');
+  }
+
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  }
+
+  /* ========================================
      初始化
      ======================================== */
   document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     initSidebar();
+  });
+
+
+  /* ========================================
+     共享工具函数
+     ======================================== */
+  /* HTML 转义（含引号，可用于属性值） */
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* 搜索高亮：转义后对关键词加 <mark> 标签，合并重叠区间 */
+  function highlightText(text, query) {
+    const escaped = escHtml(text);
+    if (!query) return escaped;
+    const lower = escaped.toLowerCase();
+    const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!keywords.length) return escaped;
+    const ranges = [];
+    keywords.forEach(kw => {
+      let start = 0;
+      while (true) {
+        const idx = lower.indexOf(kw, start);
+        if (idx < 0) break;
+        ranges.push([idx, idx + kw.length]);
+        start = idx + 1;
+      }
+    });
+    if (!ranges.length) return escaped;
+    ranges.sort((a, b) => a[0] - b[0]);
+    const merged = [ranges[0]];
+    for (let i = 1; i < ranges.length; i++) {
+      const last = merged[merged.length - 1];
+      if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
+      else merged.push(ranges[i]);
+    }
+    let result = '', pos = 0;
+    merged.forEach(([s, e]) => {
+      result += escaped.substring(pos, s) + '<mark>' + escaped.substring(s, e) + '</mark>';
+      pos = e;
+    });
+    result += escaped.substring(pos);
+    return result;
+  }
+  /* 日志清除事件同步 */
+  window.addEventListener('logscleared', () => {
+    lpLogs = []; lpLastTs = 0; lpRender();
   });
   </script>
   {% block page_script %}{% endblock %}

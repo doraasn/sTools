@@ -4,22 +4,13 @@
 
 {% block page_style %}
 <style>
-  /* ===== 容器 ===== */
-  .container { max-width: 1200px; margin: 0 auto; padding: 20px 24px; }
-
   /* ===== 头部 ===== */
   .header {
     display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
   }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .logo {
-    width: 36px; height: 36px; border-radius: var(--r);
-    background: linear-gradient(135deg, var(--a), #bc8cff);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; color: #fff;
-  }
-  .header h1 { font-size: 20px; font-weight: 600; }
+  .header-left { display: flex; flex-direction: column; gap: 2px; }
+  .header h1 { font-size: 24px; font-weight: 700; }
   .header .subtitle { font-size: 12px; color: var(--t2); }
   .actions { display: flex; gap: 8px; }
 
@@ -29,11 +20,6 @@
     background: var(--s2); border: 1px solid var(--b);
     border-radius: var(--r); padding: 2px 4px;
   }
-  .config-bar select {
-    background: transparent; border: none; color: var(--t);
-    font-size: 13px; padding: 4px 8px; cursor: pointer; font-family: var(--font);
-  }
-  .config-bar select:focus { outline: none; }
 
   /* ===== 按钮组 ===== */
   .action-group { display: flex; gap: 6px; }
@@ -65,8 +51,6 @@
   }
   .panel-bd-wrap.collapsed { max-height: 0; opacity: 0; }
   .panel-bd { padding: 0 18px 16px; }
-  .panel.log-panel .panel-bd-wrap { max-height: none; }
-
   /* ===== 连接网格 ===== */
   .conn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .conn-box {
@@ -76,18 +60,11 @@
   .conn-box-hd {
     display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
   }
-  .conn-box-hd .dot {
+  .conn-box-hd .ui-dot {
     width: 10px; height: 10px; border-radius: 50%;
   }
-  .dot-red { background: var(--err); box-shadow: 0 0 6px color-mix(in srgb, var(--err) 40%, transparent); }
-  .dot-green { background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 40%, transparent); }
   .conn-box-hd .label { font-weight: 600; font-size: 13px; }
   .conn-status { font-size: 12px; color: var(--t3); margin-left: auto; }
-
-  /* ===== 表单（输入框继承 .ui-input） ===== */
-  .form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .form-row label { font-size: 12px; color: var(--t3); min-width: 44px; }
-  .form-row input { flex: 1; }
 
   /* ===== 工具栏（输入框继承 .ui-input） ===== */
   .tools-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
@@ -131,14 +108,6 @@
   .sync-log-time { font-size: 11px; color: var(--t3); margin-right: 8px; }
 
   /* ===== 弹窗（继承 .ui-modal-overlay / .ui-modal） ===== */
-  .modal-overlay { display: none; }
-  .modal-overlay.show { display: flex; }
-  .modal { padding: 28px; }
-  .modal h3 { font-size: 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-  .modal .form-row { margin-bottom: 12px; }
-  .modal .form-row input { width: 100%; }
-  .modal .desc { font-size: 12px; color: var(--t3); margin-bottom: 12px; }
-  .modal .mb { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
   /* ===== 同步 spinner ===== */
   .sp { animation: spin 1s linear infinite; }
@@ -156,33 +125,30 @@
 {% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="page-content">
   <!-- 头部 -->
   <div class="header">
     <div class="header-left">
-      <div class="logo">⇄</div>
-      <div>
-        <h1>数据同步</h1>
-        <div class="subtitle">MySQL 表级数据同步工具</div>
-      </div>
+      <h1>数据同步</h1>
+      <div class="subtitle">MySQL 表级数据同步工具</div>
     </div>
     <div class="actions">
       <div class="config-bar">
-        <select id="configSelect" onchange="switchConfig()"></select>
+        <select class="ui-select-sm" id="configSelect" onchange="switchConfig()"></select>
         <button class="btn btn-sm" onclick="showRenameConfigModal()" title="重命名配置">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
         <button class="btn btn-sm" onclick="showCreateConfigModal()" title="新建配置">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
       <div class="action-group">
         <button class="btn btn-outline" onclick="testConn()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           测试连接
         </button>
         <button class="btn btn-primary" id="syncBtn" onclick="startSync()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           开始同步
         </button>
       </div>
@@ -193,39 +159,46 @@
   <div class="ui-panel panel" data-panel="conn" id="connPanel">
     <div class="panel-hd" onclick="togglePanel(this)">
       <div class="panel-hd-left">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
         <h3>数据库连接</h3>
       </div>
-      <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="panel-bd-wrap">
       <div class="panel-bd">
+
         <div class="conn-grid">
           <!-- 源库 -->
           <div class="conn-box">
             <div class="conn-box-hd">
-              <div class="dot dot-red" id="srcDot"></div>
+              <div class="ui-dot err" id="srcDot"></div>
               <span class="label">原库 / 生产</span>
+            <select class="ui-select-sm" id="srcDbType" style="margin-left:auto;font-size:11px;max-width:80px">
+              <option value="mysql">MySQL</option>
+            </select>
               <span class="conn-status" id="srcStatus">未检测</span>
             </div>
-            <div class="form-row"><label>主机</label><input class="ui-input" id="srcHost" placeholder="192.168.1.100"></div>
-            <div class="form-row"><label>端口</label><input class="ui-input" id="srcPort" type="number" value="3306"></div>
-            <div class="form-row"><label>用户</label><input class="ui-input" id="srcUser" placeholder="root"></div>
-            <div class="form-row"><label>密码</label><input class="ui-input" id="srcPass" type="password" placeholder="密码"></div>
-            <div class="form-row"><label>库名</label><input class="ui-input" id="srcDb" placeholder="gas_balance"></div>
+            <div class="ui-form-row"><label>主机</label><input class="ui-input" id="srcHost" placeholder="192.168.1.1"></div>
+            <div class="ui-form-row"><label>端口</label><input class="ui-input" id="srcPort" type="number" value="3306"></div>
+            <div class="ui-form-row"><label>用户</label><input class="ui-input" id="srcUser" placeholder="root"></div>
+            <div class="ui-form-row"><label>密码</label><input class="ui-input" id="srcPass" type="password" placeholder="密码"></div>
+            <div class="ui-form-row"><label>库名</label><input class="ui-input" id="srcDb" placeholder="prod_db"></div>
           </div>
           <!-- 目标库 -->
           <div class="conn-box">
             <div class="conn-box-hd">
-              <div class="dot dot-red" id="dstDot"></div>
+              <div class="ui-dot err" id="dstDot"></div>
               <span class="label">目标库 / 本地</span>
+            <select class="ui-select-sm" id="dstDbType" style="margin-left:auto;font-size:11px;max-width:80px">
+              <option value="mysql">MySQL</option>
+            </select>
               <span class="conn-status" id="dstStatus">未检测</span>
             </div>
-            <div class="form-row"><label>主机</label><input class="ui-input" id="dstHost" placeholder="127.0.0.1"></div>
-            <div class="form-row"><label>端口</label><input class="ui-input" id="dstPort" type="number" value="3306"></div>
-            <div class="form-row"><label>用户</label><input class="ui-input" id="dstUser" placeholder="root"></div>
-            <div class="form-row"><label>密码</label><input class="ui-input" id="dstPass" type="password" placeholder="密码"></div>
-            <div class="form-row"><label>库名</label><input class="ui-input" id="dstDb" placeholder="gas_balance_local"></div>
+            <div class="ui-form-row"><label>主机</label><input class="ui-input" id="dstHost" placeholder="127.0.0.1"></div>
+            <div class="ui-form-row"><label>端口</label><input class="ui-input" id="dstPort" type="number" value="3306"></div>
+            <div class="ui-form-row"><label>用户</label><input class="ui-input" id="dstUser" placeholder="root"></div>
+            <div class="ui-form-row"><label>密码</label><input class="ui-input" id="dstPass" type="password" placeholder="密码"></div>
+            <div class="ui-form-row"><label>库名</label><input class="ui-input" id="dstDb" placeholder="dev_db"></div>
           </div>
         </div>
       </div>
@@ -236,11 +209,11 @@
   <div class="ui-panel panel" data-panel="tbl">
     <div class="panel-hd" onclick="togglePanel(this)">
       <div class="panel-hd-left">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <h3>表配置</h3>
       </div>
       <div class="panel-hd-right">
-        <select id="tcSelect" onchange="switchTc()" onclick="event.stopPropagation()"></select>
+        <select class="ui-select-sm" id="tcSelect" onchange="switchTc()" onclick="event.stopPropagation()"></select>
         <button class="btn btn-sm" onclick="event.stopPropagation();showRenameTcModal()" title="重命名表配置">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
@@ -248,14 +221,14 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
         <span class="tbl-info" id="tblCountInfo"></span>
-        <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
     </div>
     <div class="panel-bd-wrap">
       <div class="panel-bd">
         <div class="tools-bar">
           <div class="search-wrap">
-            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input class="ui-input" id="searchInput" placeholder="搜索表名..." oninput="filterTables()">
           </div>
           <button class="btn btn-sm" onclick="showBatchTimeModal()">批量设置时间范围</button>
@@ -282,11 +255,11 @@
   <div class="ui-panel panel log-panel" data-panel="log">
     <div class="panel-hd" onclick="togglePanel(this)">
       <div class="panel-hd-left">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         <h3>运行日志</h3>
         <span id="logStatus" style="font-size:12px;color:var(--t3)"></span>
       </div>
-      <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      <svg class="arrow open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="panel-bd-wrap">
       <div class="panel-bd">
@@ -301,9 +274,9 @@
 <!-- 弹窗: 新建配置 -->
 <div class="ui-modal-overlay modal-overlay" id="createConfigModal">
   <div class="ui-modal modal">
-    <h3 id="createConfigModalTitle">新建配置</h3>
+    <h2 id="createConfigModalTitle">新建配置</h2>
     <div class="desc">创建一个新的数据库同步配置</div>
-    <div class="form-row"><input class="ui-input" id="createConfigNameInput" placeholder="配置名称"></div>
+    <div class="ui-form-row"><input class="ui-input" id="createConfigNameInput" placeholder="配置名称"></div>
     <div class="mb">
       <button class="btn" onclick="closeModal('createConfigModal')">取消</button>
       <button class="btn btn-primary" onclick="confirmCreateConfig()">确认</button>
@@ -314,9 +287,9 @@
 <!-- 弹窗: 批量设置时间 -->
 <div class="ui-modal-overlay modal-overlay" id="batchTimeModal">
   <div class="ui-modal modal">
-    <h3>批量设置时间范围</h3>
+    <h2>批量设置时间范围</h2>
     <div class="desc">将时间范围应用到所有已启用的表（格式：2026-05-31~2026-06-03）</div>
-    <div class="form-row"><input class="ui-input" id="batchTimeRange" placeholder="2026-05-31~2026-06-03"></div>
+    <div class="ui-form-row"><input class="ui-input" id="batchTimeRange" placeholder="2026-05-31~2026-06-03"></div>
     <div class="mb">
       <button class="btn" onclick="closeModal('batchTimeModal')">取消</button>
       <button class="btn btn-primary" onclick="applyBatchTime()">应用</button>
@@ -327,8 +300,8 @@
 <!-- 弹窗: 重命名配置 -->
 <div class="ui-modal-overlay modal-overlay" id="renameConfigModal">
   <div class="ui-modal modal">
-    <h3>重命名配置</h3>
-    <div class="form-row"><input class="ui-input" id="renameConfigInput" placeholder="新名称"></div>
+    <h2>重命名配置</h2>
+    <div class="ui-form-row"><input class="ui-input" id="renameConfigInput" placeholder="新名称"></div>
     <div class="mb">
       <button class="btn" onclick="closeModal('renameConfigModal')">取消</button>
       <button class="btn btn-primary" onclick="confirmRenameConfig()">确认</button>
@@ -339,8 +312,8 @@
 <!-- 弹窗: 重命名表配置 -->
 <div class="ui-modal-overlay modal-overlay" id="renameTcModal">
   <div class="ui-modal modal">
-    <h3>重命名表配置</h3>
-    <div class="form-row"><input class="ui-input" id="renameTcInput" placeholder="新名称"></div>
+    <h2>重命名表配置</h2>
+    <div class="ui-form-row"><input class="ui-input" id="renameTcInput" placeholder="新名称"></div>
     <div class="mb">
       <button class="btn" onclick="closeModal('renameTcModal')">取消</button>
       <button class="btn btn-primary" onclick="confirmRenameTc()">确认</button>
@@ -351,8 +324,8 @@
 <!-- 弹窗: 新建表配置 -->
 <div class="ui-modal-overlay modal-overlay" id="createTcModal">
   <div class="ui-modal modal">
-    <h3>新建表配置</h3>
-    <div class="form-row"><input class="ui-input" id="createTcNameInput" placeholder="表配置名称"></div>
+    <h2>新建表配置</h2>
+    <div class="ui-form-row"><input class="ui-input" id="createTcNameInput" placeholder="表配置名称"></div>
     <div class="mb">
       <button class="btn" onclick="closeModal('createTcModal')">取消</button>
       <button class="btn btn-primary" onclick="confirmCreateTc()">确认</button>
@@ -370,7 +343,6 @@ let saveTimer = null, syncing = false;
 let panelState = tryParse(localStorage.getItem('sync_tool_panels'), {});
 
 function tryParse(s, d) { try { return JSON.parse(s) || d; } catch { return d; } }
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* ===== 面板折叠 ===== */
 function applyPanelState() {
@@ -414,10 +386,12 @@ function readConn() {
     source: {
       host: $('srcHost').value.trim(), port: parseInt($('srcPort').value) || 3306,
       user: $('srcUser').value.trim(), password: $('srcPass').value, database: $('srcDb').value.trim(),
+      dbType: $('srcDbType').value,
     },
     target: {
       host: $('dstHost').value.trim(), port: parseInt($('dstPort').value) || 3306,
       user: $('dstUser').value.trim(), password: $('dstPass').value, database: $('dstDb').value.trim(),
+      dbType: $('dstDbType').value,
     },
   };
 }
@@ -521,7 +495,7 @@ async function switchTc() {
 }
 
 function resetDots() {
-  $('srcDot').className = 'dot dot-red'; $('dstDot').className = 'dot dot-red';
+  $('srcDot').className = 'ui-dot err'; $('dstDot').className = 'ui-dot err';
   $('srcStatus').textContent = '未检测'; $('dstStatus').textContent = '未检测';
 }
 
@@ -628,6 +602,7 @@ function closeModal(id) { $(id).classList.remove('show'); }
 /* ===== 测试连接 ===== */
 async function testConn() {
   const conn = readConn();
+  conn.dbType = $('dbTypeSelect').value;
   log('正在测试连接...', 'i');
   try {
     const r = await fetch('/api/sync/test-connection', {
@@ -640,11 +615,11 @@ async function testConn() {
       const dot = side === 'source' ? $('srcDot') : $('dstDot');
       const status = side === 'source' ? $('srcStatus') : $('dstStatus');
       if (info.ok) {
-        dot.className = 'dot dot-green';
+        dot.className = 'ui-dot ok';
         status.textContent = `${info.version} · ${info.tables} 表`;
         log(`✓ ${side === 'source' ? '源库' : '目标库'}连接成功: ${info.version}`, 'ok');
       } else {
-        dot.className = 'dot dot-red';
+        dot.className = 'ui-dot err';
         status.textContent = info.error || '连接失败';
         log(`✗ ${side === 'source' ? '源库' : '目标库'}连接失败: ${info.error}`, 'err');
       }
@@ -655,6 +630,22 @@ async function testConn() {
       autoSave();
     }
   } catch (e) { log('测试连接异常: ' + e.message, 'err'); }
+}
+
+/* ===== 数据库类型 ===== */
+function onDbTypeChange() {
+  // 预留：切换数据库类型时的处理逻辑
+}
+
+async function loadDbTypes() {
+  try {
+    const types = await (await fetch('/api/sync/db-types')).json();
+    const opts = Object.entries(types).map(([k,v]) =>
+      `<option value="${k}">${v.label}</option>`
+    ).join('');
+    $('srcDbType').innerHTML = opts;
+    $('dstDbType').innerHTML = opts;
+  } catch {}
 }
 
 /* ===== 表加载 ===== */
@@ -776,44 +767,6 @@ function renderTable() {
   }).join('');
 }
 
-function highlightText(text, query) {
-  const escaped = escHtml(text);
-  const lower = escaped.toLowerCase();
-  const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!keywords.length) return escaped;
-
-  // 收集所有匹配区间
-  const ranges = [];
-  keywords.forEach(kw => {
-    let start = 0;
-    while (true) {
-      const idx = lower.indexOf(kw, start);
-      if (idx < 0) break;
-      ranges.push([idx, idx + kw.length]);
-      start = idx + 1;
-    }
-  });
-
-  if (!ranges.length) return escaped;
-
-  // 合并重叠区间并排序
-  ranges.sort((a, b) => a[0] - b[0]);
-  const merged = [ranges[0]];
-  for (let i = 1; i < ranges.length; i++) {
-    const last = merged[merged.length - 1];
-    if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
-    else merged.push(ranges[i]);
-  }
-
-  // 构建结果
-  let result = '', pos = 0;
-  merged.forEach(([s, e]) => {
-    result += escaped.substring(pos, s) + '<mark>' + escaped.substring(s, e) + '</mark>';
-    pos = e;
-  });
-  result += escaped.substring(pos);
-  return result;
-}
 
 /* ===== 批量时间 ===== */
 function showBatchTimeModal() {
@@ -862,7 +815,7 @@ async function startSync() {
   const conn = readConn();
   const enabled = Object.entries(tables).filter(([, t]) => t.enable);
   if (!enabled.length) { log('请先启用至少一张表', 'err'); return; }
-  if (!$('srcDot').classList.contains('dot-green')) { log('请先测试连接并确保源库连接成功', 'err'); return; }
+  if (!$('srcDot').classList.contains('ok')) { log('请先测试连接并确保源库连接成功', 'err'); return; }
 
   syncing = true;
   await saveCfg();
@@ -873,7 +826,7 @@ async function startSync() {
 
   $('logBox').classList.add('busy');
   $('syncBtn').disabled = true;
-  $('syncBtn').innerHTML = '<svg class="sp" style="width:14px;height:14px;margin:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> 同步中...';
+  $('syncBtn').innerHTML = '<svg class="sp" style="width:14px;height:14px;margin:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> 同步中...';
 
   $('logBox').innerHTML = '';
   $('logStatus').textContent = `${enabled.length} 张表`;
@@ -916,7 +869,7 @@ function finishedSync() {
   $('logBox').classList.remove('busy');
   $('logStatus').textContent = '';
   $('syncBtn').disabled = false;
-  $('syncBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 开始同步';
+  $('syncBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 开始同步';
   syncing = false;
 }
 
@@ -934,6 +887,7 @@ function log(msg, type) {
 applyPanelState();
 
 (async function init() {
+  loadDbTypes();
   try {
     const r = await fetch('/api/sync/config/exists');
     const d = await r.json();

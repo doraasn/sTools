@@ -52,8 +52,6 @@ _cache = {'data': None, 'ts': 0}
 _trae_caches = {}
 _trae_parsing = {}
 
-CONFIG_FILE = 'token-settings.json'  # 已废弃，保留用于向后兼容迁移
-
 # 正则
 CLEAN_MODEL_RE = re.compile(r'<[^>]*>')
 SHORT_PREFIX_RE = re.compile(r'^[a-zA-Z]--')
@@ -201,7 +199,8 @@ def _parse_trae_log_file(filepath):
     try:
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
-    except Exception:
+    except Exception as e:
+        log_collector.add(log_collector.WARN, 'token', f'无法读取 Trae 日志文件: {filepath} ({e})')
         return records
 
     buf, cur_ts, in_event = '', '', False
@@ -271,34 +270,69 @@ def parse_trae_logs(tool):
     else:
         dirs = cfg.get('dirs', [])
 
+    if not dirs or all(not d for d in dirs):
+        log_collector.add(log_collector.WARN, 'token', f'{cfg.get("label", tool)} 日志目录未配置或不存在')
+        return []
+
     records = []
+    found_files = 0
+
     for base_dir in dirs:
         if not base_dir:
             continue
-        logs_dir = base_dir
-        if os.path.basename(base_dir) != 'logs':
+
+        # 构建搜索路径列表：logs/ 子目录 + base_dir 本身作为 fallback
+        search_dirs = []
+        if os.path.basename(base_dir) == 'logs':
+            logs_dir = base_dir
+        else:
             logs_dir = os.path.join(base_dir, 'logs')
-        if not os.path.isdir(logs_dir):
+        search_dirs.append(logs_dir)
+        # fallback: 直接在 base_dir 下搜索
+        if base_dir not in search_dirs:
+            search_dirs.append(base_dir)
+
+        if not os.path.isdir(base_dir):
+            log_collector.add(log_collector.WARN, 'token',
+                              f'{cfg.get("label", tool)} 日志目录不存在: {base_dir}')
             continue
 
-        try:
-            for session_dir in os.listdir(logs_dir):
-                mod_dir = os.path.join(logs_dir, session_dir, 'Modular')
-                if not os.path.isdir(mod_dir):
-                    continue
-                for fname in os.listdir(mod_dir):
-                    if fname.endswith('_stdout.log') and fname.startswith('ai-agent_'):
-                        fp = os.path.join(mod_dir, fname)
-                        try:
-                            if os.path.getsize(fp) > 50 * 1024 * 1024:
-                                continue
-                        except OSError:
+        for search_dir in search_dirs:
+            if not os.path.isdir(search_dir):
+                continue
+            try:
+                for session_dir in os.listdir(search_dir):
+                    mod_dir = os.path.join(search_dir, session_dir, 'Modular')
+                    if not os.path.isdir(mod_dir):
+                        # fallback: session_dir 本身可能就是Modular
+                        alt_mod = os.path.join(search_dir, session_dir)
+                        if os.path.isdir(alt_mod) and any(
+                            f.startswith('ai-agent_') and f.endswith('_stdout.log')
+                            for f in os.listdir(alt_mod)
+                        ):
+                            mod_dir = alt_mod
+                        else:
                             continue
-                        records.extend(_parse_trae_log_file(fp))
-        except Exception:
-            continue
+                    for fname in os.listdir(mod_dir):
+                        if fname.endswith('_stdout.log') and fname.startswith('ai-agent_'):
+                            fp = os.path.join(mod_dir, fname)
+                            try:
+                                if os.path.getsize(fp) > 100 * 1024 * 1024:
+                                    continue
+                            except OSError:
+                                continue
+                            records.extend(_parse_trae_log_file(fp))
+                            found_files += 1
+            except Exception:
+                continue
 
-    log_collector.add(log_collector.OK, 'token', f'{cfg.get("label", tool)} 解析完成: {len(records)} 条记录')
+    if found_files == 0:
+        log_collector.add(log_collector.WARN, 'token',
+                          f'{cfg.get("label", tool)} 未找到 ai-agent_*_stdout.log 日志文件')
+    else:
+        log_collector.add(log_collector.OK, 'token',
+                          f'{cfg.get("label", tool)} 解析完成: {len(records)} 条记录 ({found_files} 个文件)')
+
     return records
 
 
