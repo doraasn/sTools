@@ -11,3 +11,4 @@ build/
 *.spec.bak
 .venv/
 venv/
+.claude/
