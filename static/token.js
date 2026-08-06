@@ -4,6 +4,8 @@
   const COLORS = ['#3b82f6', '#22c55e', '#06b6d4', '#f59e0b', '#f43f5e', '#14b8a6', '#84cc16', '#eab308', '#64748b', '#fb7185'];
   let currentTool = '';
   let availableTools = [];
+  let catalogTools = [];
+  let settingsClaudeProjects = [];
   let rawData = null;
   let data = null;
   let settings = {};
@@ -47,37 +49,21 @@
     const hasData = availableTools.length > 0;
     ['tokenToolbar', 'tokenMetrics', 'tokenTrend', 'distributionGrid'].forEach((id) => { $(id).hidden = !hasData; });
     $('tokenSourceEmpty').hidden = hasData;
-    $('tokenSettings').disabled = !hasData;
+    $('tokenSettings').disabled = false;
     $('tokenRefresh').disabled = !hasData;
   }
 
   async function loadTools() {
-    availableTools = await api('/api/token-tools');
-    if (!Array.isArray(availableTools)) availableTools = [];
+    catalogTools = await api('/api/token-tool-catalog');
+    if (!Array.isArray(catalogTools)) catalogTools = [];
+    const visibleTools = catalogTools
+      .filter((tool) => tool.hasData && tool.visible)
+      .map((tool) => ({ name: tool.name, label: tool.label }));
+    availableTools = visibleTools.length ? [{ name: 'all', label: '全部' }, ...visibleTools] : [];
     if (!availableTools.some((tool) => tool.name === currentTool)) {
       currentTool = availableTools[0]?.name || '';
     }
     renderToolSwitch();
-  }
-
-  function applyProjectSettings(source) {
-    if (!source || currentTool !== 'claude') return source;
-    const copy = JSON.parse(JSON.stringify(source));
-    const visibleCells = copy.cells
-      .filter((cell) => !hiddenProjects.includes(cell.project))
-      .map((cell) => ({ ...cell, project: aliases[cell.project] || cell.project }));
-    const projectMap = new Map();
-    visibleCells.forEach((cell) => {
-      const project = projectMap.get(cell.project) || { name: cell.project, total: 0, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, sessions: 0 };
-      ['total', 'input', 'output', 'cacheRead', 'cacheCreate', 'sessions'].forEach((key) => { project[key] += cell[key] || 0; });
-      projectMap.set(cell.project, project);
-    });
-    copy.cells = visibleCells;
-    copy.projects = [...projectMap.values()].sort((a, b) => b.total - a.total);
-    copy.summary.grandTotal = visibleCells.reduce((sum, cell) => sum + cell.total, 0);
-    copy.summary.totalProjects = copy.projects.length;
-    copy.summary.totalDays = new Set(visibleCells.map((cell) => cell.date)).size;
-    return copy;
   }
 
   function dateBounds() {
@@ -147,12 +133,13 @@
     $('metricCacheMeta').textContent = `命中 ${formatNumber(totals.cache)}`;
     $('metricSessionMeta').textContent = `${view.summary.totalModels} 个模型`;
     $('metricDaysMeta').textContent = period === 'all' ? '全部本地记录' : '当前筛选范围';
-    $('metricProjectsMeta').textContent = currentTool === 'claude' ? '可在设置中隐藏' : '识别到的本地项目';
+    $('metricProjectsMeta').textContent = currentTool === 'all' ? '跨工具合并统计' : (currentTool === 'claude' ? '可在设置中隐藏' : '识别到的本地项目');
   }
 
   function renderDaily(view) {
     charts.daily?.destroy();
     charts.daily = null;
+    $('dailyTooltip').hidden = true;
     const visibleModels = view.models.filter((model) => !hiddenModels.has(model.name));
     const dates = [...new Set(view.cells.map((cell) => cell.date))].sort();
     $('dailyEmpty').classList.toggle('show', !dates.length || !visibleModels.length || typeof Chart === 'undefined');
@@ -188,24 +175,64 @@
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: colors.surface, titleColor: colors.text, bodyColor: colors.text2,
-            borderColor: colors.line, borderWidth: 1, padding: 12,
-            callbacks: {
-              label: () => '',
-              afterBody: (items) => {
-                const index = items[0]?.dataIndex;
-                if (index === undefined) return [];
-                const lines = [];
-                visibleModels.forEach((model, modelIndex) => {
-                  const item = map.get(`${dates[index]}\0${model.name}`) || {};
-                  const input = (item.input || 0) + (item.cacheCreate || 0);
-                  const cache = item.cacheRead || 0;
-                  const output = item.output || 0;
-                  if (modelIndex) lines.push('');
-                  lines.push(model.name, `  输入 ${formatNumber(input)}  ·  缓存 ${formatNumber(cache)}  ·  输出 ${formatNumber(output)}`, `  合计 ${formatNumber(input + cache + output)}`);
-                });
-                return lines;
-              },
+            enabled: false,
+            external: ({ chart, tooltip }) => {
+              const tooltipElement = $('dailyTooltip');
+              const dataIndex = tooltip.dataPoints?.[0]?.dataIndex;
+              if (tooltip.opacity === 0 || dataIndex === undefined) {
+                tooltipElement.hidden = true;
+                return;
+              }
+
+              // 按当日用量从小到大排列，最高用量始终位于提示框最底部。
+              const entries = visibleModels.map((model) => {
+                const item = map.get(`${dates[dataIndex]}\0${model.name}`) || {};
+                const total = (item.input || 0) + (item.cacheCreate || 0) + (item.cacheRead || 0) + (item.output || 0);
+                return { name: model.name, total, color: COLORS[view.models.indexOf(model) % COLORS.length] };
+              }).filter((item) => item.total > 0)
+                .sort((left, right) => left.total - right.total || left.name.localeCompare(right.name));
+              const dayTotal = entries.reduce((sum, item) => sum + item.total, 0);
+              tooltipElement.innerHTML = `
+                <div class="daily-tooltip-head"><span>${escapeHTML(dates[dataIndex])}</span><strong>${formatNumber(dayTotal)}</strong></div>
+                <div class="daily-tooltip-list">${entries.map((item) => `
+                  <div class="daily-tooltip-row">
+                    <span class="daily-tooltip-model"><span class="daily-tooltip-dot" style="background:${item.color}"></span><span>${escapeHTML(item.name)}</span></span>
+                    <span class="daily-tooltip-value">${formatNumber(item.total)}</span>
+                  </div>`).join('')}</div>`;
+              tooltipElement.hidden = false;
+
+              const activeBars = tooltip.dataPoints.map((item) => item.element).filter(Boolean);
+              if (!activeBars.length) return;
+              const canvasLeft = chart.canvas.offsetLeft;
+              const canvasTop = chart.canvas.offsetTop;
+              const barCenter = canvasLeft + activeBars[0].x;
+              const barHalfWidth = Math.max(...activeBars.map((bar) => bar.width || 0)) / 2;
+              const stackTop = Math.min(...activeBars.map((bar) => Math.min(bar.y, bar.base)));
+              const stackBottom = Math.max(...activeBars.map((bar) => Math.max(bar.y, bar.base)));
+              const gap = 14;
+              const edge = 8;
+              const width = tooltipElement.offsetWidth;
+              const height = tooltipElement.offsetHeight;
+              const wrapWidth = tooltipElement.parentElement.clientWidth;
+              const wrapHeight = tooltipElement.parentElement.clientHeight;
+              const leftOfBar = barCenter - barHalfWidth - gap - width;
+              const rightOfBar = barCenter + barHalfWidth + gap;
+              const fitsLeft = leftOfBar >= edge;
+              const fitsRight = rightOfBar + width <= wrapWidth - edge;
+              let left;
+              let top = canvasTop + (stackTop + stackBottom - height) / 2;
+
+              // 优先放在数据柱两侧；空间不足时改放到上方或下方，避免覆盖悬浮对象。
+              if (fitsLeft || fitsRight) {
+                left = fitsLeft && (!fitsRight || barCenter > wrapWidth / 2) ? leftOfBar : rightOfBar;
+              } else {
+                left = Math.min(Math.max(barCenter - width / 2, edge), Math.max(edge, wrapWidth - width - edge));
+                const above = canvasTop + stackTop - height - gap;
+                const below = canvasTop + stackBottom + gap;
+                top = above >= edge ? above : below;
+              }
+              tooltipElement.style.left = `${Math.round(left)}px`;
+              tooltipElement.style.top = `${Math.round(Math.min(Math.max(top, edge), Math.max(edge, wrapHeight - height - edge)))}px`;
             },
           },
         },
@@ -282,7 +309,7 @@
     $('tokenRefresh').disabled = true;
     try {
       rawData = await api(`/api/tokens?tool=${encodeURIComponent(currentTool)}`);
-      data = applyProjectSettings(rawData);
+      data = rawData;
       renderAll();
       $('tokenUpdated').textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
       if (typeof Chart === 'undefined') toast('图表组件未加载', '请检查本机网络后刷新页面', 'warning', 5000);
@@ -295,23 +322,37 @@
     }
   }
 
-  function renderSettings() {
+  async function renderSettings() {
     const body = $('tokenSettingsBody');
-    if (currentTool === 'claude') {
-      const projects = rawData?.projects || [];
-      body.innerHTML = `<section class="settings-section"><h3>项目显示</h3><p>隐藏不关心的项目，或设置更易读的显示名称。</p>${projects.map((project, index) => `
-        <div class="project-setting">
-          <label class="switch"><input type="checkbox" data-project-visible="${index}" ${hiddenProjects.includes(project.name) ? '' : 'checked'}><span></span></label>
-          <span class="project-original" title="${escapeHTML(project.name)}">${escapeHTML(project.name)}</span>
-          <input class="input" data-project-alias="${index}" value="${escapeHTML(aliases[project.name] || '')}" placeholder="显示名称">
-        </div>`).join('') || '<div class="empty-state compact">暂无项目</div>'}</section>`;
-    } else if (currentTool === 'trae-intl' || currentTool === 'trae-cn') {
-      const label = currentTool === 'trae-cn' ? 'Trae CN' : 'Trae';
-      body.innerHTML = `<section class="settings-section"><h3>${label} 日志目录</h3><p>留空时使用系统默认目录，修改后会自动重建增量缓存。</p><div class="field"><label>本地路径</label><input class="input" id="traePath" value="${escapeHTML(settings[currentTool] || '')}" placeholder="例如 D:\\Apps\\Trae"></div></section>`;
-    } else {
-      const tool = availableTools.find((item) => item.name === currentTool);
-      body.innerHTML = `<section class="settings-section"><h3>${escapeHTML(tool?.label || currentTool)}</h3><p>数据会从该工具的本地会话目录自动读取，无需额外配置。</p><div class="source-path-note">刷新页面时会自动发现新记录，并按文件或数据库状态增量更新。</div></section>`;
+    body.innerHTML = '<div class="settings-loading"><span class="spinner"></span><span>正在读取工具设置…</span></div>';
+    settingsClaudeProjects = [];
+    if (catalogTools.some((tool) => tool.name === 'claude' && tool.hasData)) {
+      try {
+        const report = await api('/api/tokens?tool=claude&raw=1');
+        settingsClaudeProjects = report.projects || [];
+      } catch (_) {}
     }
+
+    body.innerHTML = `<div class="tool-settings-list">${catalogTools.map((tool) => {
+      let detail = '<div class="source-path-note">自动读取本机数据，无需额外配置。</div>';
+      if (tool.name === 'trae-intl' || tool.name === 'trae-cn') {
+        detail = `<div class="field"><label>日志目录</label><input class="input" data-tool-path="${tool.name}" value="${escapeHTML(settings[tool.name] || '')}" placeholder="留空使用系统默认目录"></div>`;
+      } else if (tool.name === 'claude') {
+        detail = `<div class="claude-project-settings"><p>项目显示与别名</p>${settingsClaudeProjects.map((project, index) => `
+          <div class="project-setting">
+            <label class="switch"><input type="checkbox" data-project-visible="${index}" ${hiddenProjects.includes(project.name) ? '' : 'checked'}><span></span></label>
+            <span class="project-original" title="${escapeHTML(project.name)}">${escapeHTML(project.name)}</span>
+            <input class="input" data-project-alias="${index}" value="${escapeHTML(aliases[project.name] || '')}" placeholder="显示名称">
+          </div>`).join('') || '<div class="empty-state compact">暂无项目</div>'}</div>`;
+      }
+      return `<section class="tool-setting-card" data-setting-tool="${tool.name}">
+        <header class="tool-setting-head">
+          <div><h3>${escapeHTML(tool.label)}</h3><span class="tool-data-state ${tool.hasData ? 'ready' : ''}">${tool.hasData ? '已检测到数据' : '暂无数据'}</span></div>
+          <label class="visibility-control"><span>展示</span><span class="switch"><input type="checkbox" data-tool-visible="${tool.name}" ${tool.visible ? 'checked' : ''}><span></span></span></label>
+        </header>
+        <div class="tool-setting-detail">${detail}</div>
+      </section>`;
+    }).join('')}</div>`;
   }
 
   $('toolSwitch').addEventListener('click', async (event) => {
@@ -344,24 +385,34 @@
     renderDaily(view);
   });
   $('tokenRefresh').addEventListener('click', () => loadData(false));
-  $('tokenSettings').addEventListener('click', () => { renderSettings(); openModal('tokenSettingsModal'); });
+  $('tokenSettings').addEventListener('click', () => {
+    openModal('tokenSettingsModal');
+    renderSettings().catch((error) => { $('tokenSettingsBody').innerHTML = `<div class="empty-state compact">${escapeHTML(error.message)}</div>`; });
+  });
   $('tokenSettingsSave').addEventListener('click', async () => {
-    if (currentTool === 'claude') {
-      const projects = rawData?.projects || [];
-      projects.forEach((project, index) => {
-        const visible = document.querySelector(`[data-project-visible="${index}"]`)?.checked;
-        const alias = document.querySelector(`[data-project-alias="${index}"]`)?.value.trim();
-        hiddenProjects = visible ? hiddenProjects.filter((name) => name !== project.name) : [...new Set([...hiddenProjects, project.name])];
-        if (alias) aliases[project.name] = alias; else delete aliases[project.name];
-      });
+    settings.hiddenTools = catalogTools
+      .filter((tool) => !document.querySelector(`[data-tool-visible="${tool.name}"]`)?.checked)
+      .map((tool) => tool.name);
+    ['trae-intl', 'trae-cn'].forEach((name) => {
+      settings[name] = document.querySelector(`[data-tool-path="${name}"]`)?.value.trim() || '';
+    });
+    settingsClaudeProjects.forEach((project, index) => {
+      const visible = document.querySelector(`[data-project-visible="${index}"]`)?.checked;
+      const alias = document.querySelector(`[data-project-alias="${index}"]`)?.value.trim();
+      hiddenProjects = visible ? hiddenProjects.filter((name) => name !== project.name) : [...new Set([...hiddenProjects, project.name])];
+      if (alias) aliases[project.name] = alias; else delete aliases[project.name];
+    });
+    settings.aliases = aliases;
+    settings.hiddenProjects = hiddenProjects;
+    try {
+      await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
       saveLocalSettings();
-    } else if (currentTool === 'trae-intl' || currentTool === 'trae-cn') {
-      settings[currentTool] = $('traePath')?.value.trim() || '';
-      try { await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) }); }
-      catch (error) { toast('设置保存失败', error.message, 'error'); return; }
+      await loadTools();
+      if (currentTool) await loadData(false);
+    } catch (error) {
+      toast('设置保存失败', error.message, 'error');
+      return;
     }
-    data = applyProjectSettings(rawData);
-    renderAll();
     closeModal('tokenSettingsModal');
     toast('设置已保存', '', 'success');
   });
@@ -370,7 +421,10 @@
   (async () => {
     loadLocalSettings();
     try {
-      [settings] = await Promise.all([api('/api/config'), loadTools()]);
+      settings = await api('/api/config');
+      aliases = { ...aliases, ...(settings.aliases || {}) };
+      hiddenProjects = settings.hiddenProjects || hiddenProjects;
+      await loadTools();
     } catch (error) {
       settings = {};
       toast('本地工具识别失败', error.message, 'error', 5000);

@@ -20,32 +20,6 @@ from util import json_store
 
 
 TOOL_CONFIGS = {
-    'claude': {
-        'dir': os.path.join(os.path.expanduser('~'), '.claude', 'projects'),
-        'type': 'jsonl',
-        'label': 'Claude Code',
-    },
-    'trae-intl': {
-        'dirs': [os.path.join(os.environ.get('APPDATA', ''), 'Trae')],
-        'type': 'trae_log',
-        'label': 'Trae',
-    },
-    'trae-cn': {
-        'dirs': [os.path.join(os.environ.get('APPDATA', ''), 'Trae CN')],
-        'type': 'trae_log',
-        'label': 'Trae CN',
-    },
-    'opencode': {
-        'db': os.path.join(os.path.expanduser('~'), '.local', 'share', 'opencode', 'opencode.db'),
-        'type': 'usage_db',
-        'label': 'OpenCode',
-    },
-    'mimocode': {
-        'db': os.path.join(os.path.expanduser('~'), '.local', 'share', 'mimocode', 'mimocode.db'),
-        'type': 'usage_db',
-        'label': 'MimoCode',
-        'exclude_imports': True,
-    },
     'codex': {
         'dirs': [
             os.path.join(os.path.expanduser('~'), '.codex', 'sessions'),
@@ -54,7 +28,34 @@ TOOL_CONFIGS = {
         'type': 'codex_jsonl',
         'label': 'Codex',
     },
+    'mimocode': {
+        'db': os.path.join(os.path.expanduser('~'), '.local', 'share', 'mimocode', 'mimocode.db'),
+        'type': 'usage_db',
+        'label': 'MimoCode',
+        'exclude_imports': True,
+    },
+    'claude': {
+        'dir': os.path.join(os.path.expanduser('~'), '.claude', 'projects'),
+        'type': 'jsonl',
+        'label': 'Claude',
+    },
+    'opencode': {
+        'db': os.path.join(os.path.expanduser('~'), '.local', 'share', 'opencode', 'opencode.db'),
+        'type': 'usage_db',
+        'label': 'OpenCode',
+    },
+    'trae-cn': {
+        'dirs': [os.path.join(os.environ.get('APPDATA', ''), 'Trae CN')],
+        'type': 'trae_log',
+        'label': 'Trae CN',
+    },
+    'trae-intl': {
+        'dirs': [os.path.join(os.environ.get('APPDATA', ''), 'Trae')],
+        'type': 'trae_log',
+        'label': 'Trae',
+    },
 }
+TOOL_ORDER = tuple(TOOL_CONFIGS)
 
 _clean_model_re = re.compile(r'<[^>]*>')
 _short_prefix_re = re.compile(r'^[a-zA-Z]--')
@@ -62,7 +63,8 @@ _short_projects_re = re.compile(r'^Projects--')
 _trae_start_re = re.compile(
     r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*token usage:\s*TokenUsageEvent\s*\{'
 )
-_trae_end_re = re.compile(r'\}\s*trace_id="[^"]*"\s*session_id=(\w+)')
+_trae_session_re = re.compile(r'session_id=(?:"([^"]+)"|([\w-]+))')
+_trae_trace_re = re.compile(r'trace_id(?:=|:\s*)(?:"([^"]+)"|([\w-]+))')
 
 
 def short_name(raw):
@@ -91,32 +93,48 @@ class TokenService:
         return json_store.load_config('token', {})
 
     def save_settings(self, data):
-        """保存 Token 设置。@param data 例如：{'trae-cn': 'D:/Trae CN'}。@return 例如：None。"""
+        """保存 Token 设置。@param data 例如：{'hiddenTools': ['trae-cn']}。@return 例如：None。"""
+        hidden_tools = data.get('hiddenTools', [])
+        data['hiddenTools'] = [name for name in hidden_tools if name in TOOL_CONFIGS]
         json_store.save_config('token', data)
-        self.invalidate('trae')
+        self.invalidate()
+
+    def get_tool_catalog(self):
+        """返回全部工具的发现与显示状态。@return 例如：[{'name': 'codex', 'hasData': True}]。"""
+        hidden_tools = set(self.get_settings().get('hiddenTools', []))
+
+        def inspect(name):
+            config = TOOL_CONFIGS[name]
+            try:
+                has_data = self._has_tool_data(name, config)
+            except Exception as error:
+                has_data = False
+                log_service.add(
+                    log_service.WARN, 'token',
+                    f"检查 {config['label']} Token 数据失败: {error}",
+                )
+            return {
+                'name': name,
+                'label': config['label'],
+                'type': config['type'],
+                'hasData': has_data,
+                'visible': name not in hidden_tools,
+            }
+
+        # 各工具数据源互不依赖，并行发现可避免大型本地日志依次阻塞页面。
+        with ThreadPoolExecutor(max_workers=min(6, len(TOOL_ORDER))) as executor:
+            return list(executor.map(inspect, TOOL_ORDER))
 
     def get_available_tools(self):
         """
         并行检查本机存在有效 Token 数据的工具。
         @return 例如：[{'name': 'codex', 'label': 'Codex', 'records': 12}]
         """
-        def inspect(item):
-            name, config = item
-            try:
-                if not self._has_tool_data(name, config):
-                    return None
-                return {'name': name, 'label': config['label']}
-            except Exception as error:
-                log_service.add(
-                    log_service.WARN, 'token',
-                    f"检查 {config['label']} Token 数据失败: {error}",
-                )
-                return None
-
-        # 各工具数据源互不依赖，并行发现可避免大型本地日志依次阻塞页面。
-        with ThreadPoolExecutor(max_workers=min(6, len(TOOL_CONFIGS))) as executor:
-            results = list(executor.map(inspect, TOOL_CONFIGS.items()))
-        return [item for item in results if item]
+        tools = [
+            {'name': item['name'], 'label': item['label']}
+            for item in self.get_tool_catalog() if item['hasData'] and item['visible']
+        ]
+        return ([{'name': 'all', 'label': '全部'}] + tools) if tools else []
 
     def _has_tool_data(self, tool, config):
         """快速判断工具是否至少存在一条有效记录。@return 例如：True。"""
@@ -152,13 +170,19 @@ class TokenService:
                 self._database_cache.pop(name, None)
             return len(keys) + len(database_keys)
 
-    def get_report(self, tool):
+    def get_report(self, tool, apply_settings=True):
         """
         获取指定工具的聚合报告。
 
         @param tool 例如：claude
         @return 例如：{'summary': {'grandTotal': 100}, 'cells': []}
         """
+        if tool == 'all':
+            return self._get_all_report()
+        return aggregate_report(self._load_records(tool, apply_settings))
+
+    def _load_records(self, tool, apply_settings=True):
+        """加载单个工具的原始记录。@param tool 例如：codex。@return 例如：[{'total': 100}]。"""
         config = TOOL_CONFIGS.get(tool)
         if not config:
             raise ValueError(f'未知工具: {tool}')
@@ -172,7 +196,44 @@ class TokenService:
             records = self._load_codex_records(config)
         else:
             raise ValueError(f"不支持的数据源类型: {config['type']}")
-        return aggregate_report(records)
+        if tool == 'claude' and apply_settings:
+            records = self._apply_claude_settings(records)
+        return records
+
+    def _get_all_report(self):
+        """并行聚合全部已显示工具。@return 例如：{'summary': {'grandTotal': 100}}。"""
+        hidden_tools = set(self.get_settings().get('hiddenTools', []))
+        tools = [name for name in TOOL_ORDER if name not in hidden_tools]
+        if not tools:
+            return aggregate_report([])
+
+        def load(name):
+            try:
+                if not self._has_tool_data(name, TOOL_CONFIGS[name]):
+                    return []
+                records = self._load_records(name)
+                # 不同工具可能使用相同会话编号，汇总前增加来源前缀避免会话数被合并。
+                return [{**record, 'sessionId': f"{name}:{record.get('sessionId', '')}"} for record in records]
+            except Exception as error:
+                log_service.add(
+                    log_service.WARN, 'token',
+                    f"汇总 {TOOL_CONFIGS[name]['label']} Token 数据失败: {error}",
+                )
+                return []
+
+        with ThreadPoolExecutor(max_workers=min(4, len(tools))) as executor:
+            groups = list(executor.map(load, tools))
+        return aggregate_report([record for group in groups for record in group])
+
+    def _apply_claude_settings(self, records):
+        """应用 Claude 项目隐藏与别名设置。@return 例如：[{'project': '演示项目'}]。"""
+        settings = self.get_settings()
+        hidden = set(settings.get('hiddenProjects', []))
+        aliases = settings.get('aliases', {})
+        return [
+            {**record, 'project': aliases.get(record.get('project'), record.get('project'))}
+            for record in records if record.get('project') not in hidden
+        ]
 
     def _cached_parse(self, path, kind, parser, *args):
         """按文件状态复用解析结果。@return 例如：[{'total': 100}]。"""
@@ -265,11 +326,12 @@ class TokenService:
                         paths.add(os.path.join(root, filename))
 
         records = []
-        for path in sorted(paths):
-            records.extend(self._cached_parse(path, 'trae', _parse_trae_file))
-        self._drop_missing_cache(paths, 'trae')
-
         label = config.get('label', tool)
+        cache_kind = f'trae:{tool}'
+        for path in sorted(paths):
+            records.extend(self._cached_parse(path, cache_kind, _parse_trae_file, label))
+        self._drop_missing_cache(paths, cache_kind)
+
         if not paths:
             log_service.add(log_service.WARN, 'token', f'{label} 未找到可解析日志')
         return records
@@ -645,12 +707,29 @@ def _parse_claude_file(filepath, project):
     return list(records_by_message.values())
 
 
-def _parse_trae_file(filepath):
+def _parse_trae_file(filepath, fallback_model='Trae'):
     """逐行解析 Trae stdout 日志。@return 例如：[{'model': 'Trae'}]。"""
     records = []
     buffer = ''
     current_timestamp = ''
     in_event = False
+    event_index = 0
+
+    def finish_event(body, timestamp, context=''):
+        """完成单个用量事件。@param context 例如：session_id=abc。@return 例如：None。"""
+        nonlocal event_index
+        event_index += 1
+        session_match = _trae_session_re.search(context)
+        trace_match = _trae_trace_re.search(context)
+        session_id = ''
+        if session_match:
+            session_id = session_match.group(1) or session_match.group(2)
+        elif trace_match:
+            session_id = trace_match.group(1) or trace_match.group(2)
+        if not session_id:
+            session_id = f'{os.path.basename(filepath)}:{event_index}'
+        _append_trae_record(records, body, timestamp, session_id, fallback_model)
+
     try:
         file = open(filepath, 'r', encoding='utf-8', errors='ignore')
     except OSError:
@@ -661,26 +740,27 @@ def _parse_trae_file(filepath):
             line = raw_line.rstrip('\r\n')
             start_match = _trae_start_re.match(line)
             if start_match:
-                end_match = _trae_end_re.search(line)
-                if end_match:
-                    _append_trae_record(
-                        records, line[start_match.end():end_match.start()],
-                        start_match.group(1), end_match.group(1),
+                remainder = line[start_match.end():]
+                close_index = remainder.find('}')
+                if close_index >= 0:
+                    finish_event(
+                        remainder[:close_index], start_match.group(1),
+                        remainder[close_index + 1:],
                     )
                     in_event = False
                     continue
-                buffer = line[start_match.end():]
+                buffer = remainder
                 current_timestamp = start_match.group(1)
                 in_event = True
                 continue
 
             if not in_event:
                 continue
-            end_match = _trae_end_re.search(line)
-            if end_match:
-                _append_trae_record(
-                    records, buffer + '\n' + line[:end_match.start()],
-                    current_timestamp, end_match.group(1),
+            close_index = line.find('}')
+            if close_index >= 0:
+                finish_event(
+                    buffer + '\n' + line[:close_index], current_timestamp,
+                    line[close_index + 1:],
                 )
                 buffer = ''
                 in_event = False
@@ -692,26 +772,37 @@ def _parse_trae_file(filepath):
     return records
 
 
-def _append_trae_record(records, body, timestamp, session_id):
+def _append_trae_record(records, body, timestamp, session_id, fallback_model='Trae'):
     """追加一条 Trae Token 记录。@return 例如：None。"""
     def number(name):
         match = re.search(rf'{name}:\s*(?:Some\((\d+)\)|(\d+))', body)
         return int(match.group(1) or match.group(2)) if match else 0
 
     input_tokens = number('prompt_tokens')
-    output_tokens = number('completion_tokens')
+    completion_tokens = number('completion_tokens')
+    reasoning_tokens = number('reasoning_tokens')
     cache_read = number('cache_read_input_tokens')
     cache_create = number('cache_creation_input_tokens')
+    reported_total = number('total_tokens')
+    computed_total = (
+        input_tokens + completion_tokens + reasoning_tokens + cache_read + cache_create
+    )
+    total = reported_total or computed_total
+    # Trae 的 total_tokens 包含 reasoning_tokens；将非输入与非缓存部分统一计入输出。
+    output_tokens = max(completion_tokens + reasoning_tokens, total - input_tokens - cache_read - cache_create)
+    total = input_tokens + output_tokens + cache_read + cache_create
+    model_match = re.search(r'name:\s*"([^"]*)"', body)
+    model = clean_model(model_match.group(1) if model_match else '') or fallback_model
     records.append({
         'date': timestamp[:10],
-        'model': 'Trae',
-        'project': 'Trae',
+        'model': model,
+        'project': fallback_model,
         'sessionId': session_id,
         'input': input_tokens,
         'output': output_tokens,
         'cacheRead': cache_read,
         'cacheCreate': cache_create,
-        'total': input_tokens + output_tokens + cache_read + cache_create,
+        'total': total,
     })
 
 

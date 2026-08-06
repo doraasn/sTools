@@ -31,7 +31,7 @@
 <section class="panel token-source-empty" id="tokenSourceEmpty" hidden>
   <span class="empty-source-icon">○</span>
   <h2>暂无 Token 数据</h2>
-  <p>未发现可解析的本地 AI 编程工具记录，产生新会话后再刷新即可。</p>
+  <p>未发现可展示的本地 AI 编程工具记录；可在“设置”中检查工具显示状态和日志目录。</p>
 </section>
 
 <section class="token-toolbar panel" id="tokenToolbar">
@@ -83,6 +83,7 @@
   </header>
   <div class="chart-wrap trend-chart-wrap">
     <canvas id="dailyChart"></canvas>
+    <div class="daily-tooltip" id="dailyTooltip" role="status" hidden></div>
     <div class="chart-empty" id="dailyEmpty">暂无可展示的数据</div>
   </div>
 </section>

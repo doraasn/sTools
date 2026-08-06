@@ -6,7 +6,7 @@ dTools 是运行在 `127.0.0.1` 上的本地开发工作台，用于查看 AI �
 
 ## 功能
 
-- **Token 分析**：自动发现并解析 Claude Code、Trae、Trae CN、OpenCode、MimoCode、Codex 本地记录；只有存在有效数据的来源才显示标签。
+- **Token 分析**：自动发现并解析 Codex、MimoCode、Claude、OpenCode、Trae CN、Trae 本地记录；支持“全部”跨工具汇总，只有存在有效数据且已启用的来源才显示标签。
 - **数据同步**：保存多套源库/目标库连接和表策略，以流式读取、批量 UPSERT、逐表事务方式同步 MySQL 数据。
 - **运行日志**：内存保留最近 3000 条事件，按日写入 `~/.dTools/logs`，支持搜索、过滤、复制和持久清空。
 
@@ -44,3 +44,5 @@ static/      设计系统、页面样式和前端逻辑
 ```
 
 持久化数据继续使用 `~/.dTools`，兼容旧版 `token-settings.json` 和 `sync_config.json` 自动迁移。
+
+Token 设置统一管理全部工具的展示状态、Trae 日志目录以及 Claude 项目别名与显隐。每日趋势悬浮卡片只列出当天有用量的模型，并按用量从低到高排列。

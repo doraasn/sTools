@@ -14,8 +14,10 @@ from unittest.mock import patch
 
 from app import app
 from service.token_service import (
+    TOOL_ORDER,
     _parse_claude_file,
     _parse_codex_file,
+    _parse_trae_file,
     _parse_usage_database,
     aggregate_report,
 )
@@ -46,6 +48,26 @@ class ApplicationTest(unittest.TestCase):
             response = self.client.get('/api/token-tools')
         self.assertEqual(200, response.status_code)
         self.assertEqual(tools, response.get_json())
+
+    def test_tool_catalog_endpoint(self):
+        """工具目录接口保持固定顺序。@return 例如：None。"""
+        catalog = [
+            {'name': name, 'label': name, 'type': 'test', 'hasData': False, 'visible': True}
+            for name in TOOL_ORDER
+        ]
+        with patch('controller.token_controller.token_service.get_tool_catalog', return_value=catalog):
+            response = self.client.get('/api/token-tool-catalog')
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(list(TOOL_ORDER), [item['name'] for item in response.get_json()])
+
+    def test_all_tools_report_endpoint(self):
+        """全部工具汇总入口可正常路由。@return 例如：None。"""
+        report = {'summary': {'grandTotal': 123}, 'cells': [], 'models': [], 'projects': []}
+        with patch('controller.token_controller.token_service.get_report', return_value=report) as mocked:
+            response = self.client.get('/api/tokens?tool=all')
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(123, response.get_json()['summary']['grandTotal'])
+        mocked.assert_called_once_with('all', True)
 
 
 class TokenServiceTest(unittest.TestCase):
@@ -129,6 +151,25 @@ class TokenServiceTest(unittest.TestCase):
         self.assertEqual(1, len(records))
         self.assertEqual('mimo-test', records[0]['model'])
         self.assertEqual(30, records[0]['output'])
+        self.assertEqual(150, records[0]['total'])
+
+    def test_trae_single_line_and_reasoning_tokens(self):
+        """Trae 单行事件可解析，并将推理 Token 纳入总量。@return 例如：None。"""
+        line = (
+            '2026-08-06T10:00:00.000000+08:00 INFO token usage: TokenUsageEvent { '
+            'name: "", prompt_tokens: 100, completion_tokens: 20, total_tokens: 150, '
+            'reasoning_tokens: Some(30), cache_creation_input_tokens: Some(0), '
+            'cache_read_input_tokens: Some(0), prompt_tokens_total: Some(0), '
+            'completion_tokens_total: Some(0) }'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, 'ai-agent_0_stdout.log')
+            with open(path, 'w', encoding='utf-8') as file:
+                file.write(line + '\n')
+            records = _parse_trae_file(path, 'Trae CN')
+        self.assertEqual(1, len(records))
+        self.assertEqual('Trae CN', records[0]['model'])
+        self.assertEqual(50, records[0]['output'])
         self.assertEqual(150, records[0]['total'])
 
 

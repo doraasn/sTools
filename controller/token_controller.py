@@ -26,10 +26,11 @@ def token_page():
 def get_tokens():
     """返回 Token 聚合数据。@param tool 例如：claude。@return 例如：{'summary': {}}。"""
     tool = request.args.get('tool', 'claude')
-    if tool not in TOOL_CONFIGS:
+    if tool != 'all' and tool not in TOOL_CONFIGS:
         return jsonify({'error': f'未知工具: {tool}'}), 400
     try:
-        return jsonify(token_service.get_report(tool))
+        apply_settings = request.args.get('raw') != '1'
+        return jsonify(token_service.get_report(tool, apply_settings))
     except Exception as error:
         log_service.add(log_service.ERR, 'token', f'Token 数据加载失败: {error}')
         return jsonify({'error': str(error)}), 500
@@ -42,6 +43,16 @@ def get_token_tools():
         return jsonify(token_service.get_available_tools())
     except Exception as error:
         log_service.add(log_service.ERR, 'token', f'Token 工具发现失败: {error}')
+        return jsonify({'error': str(error)}), 500
+
+
+@token_blueprint.get('/api/token-tool-catalog')
+def get_token_tool_catalog():
+    """返回固定顺序的全部工具及发现状态。@return 例如：[{'name': 'codex'}]。"""
+    try:
+        return jsonify(token_service.get_tool_catalog())
+    except Exception as error:
+        log_service.add(log_service.ERR, 'token', f'Token 工具目录加载失败: {error}')
         return jsonify({'error': str(error)}), 500
 
 

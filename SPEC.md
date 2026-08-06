@@ -45,10 +45,14 @@ Controller -> Service -> Task
 
 后端根据路径、修改时间纳秒和文件大小缓存 JSONL/日志解析结果，并根据数据库与 WAL 状态缓存 OpenCode 兼容数据库。刷新时只重新解析变化的数据源。MimoCode 会排除导入的 Claude/外部会话，避免跨工具重复统计。
 
+工具标签固定为“全部、Codex、MimoCode、Claude、OpenCode、Trae CN、Trae”，无有效数据或在统一设置中关闭展示的来源不生成标签。“全部”并行读取所有已展示来源，并在合并前为会话编号增加工具前缀，避免跨工具会话编号碰撞。Trae 解析同时兼容带/不带 `session_id` 的单行 TokenUsageEvent，并将 `reasoning_tokens` 计入输出与总量。
+
 接口：
 
 - `GET /api/tokens?tool=claude`
+- `GET /api/tokens?tool=all`
 - `GET /api/token-tools`（仅返回有有效记录的来源）
+- `GET /api/token-tool-catalog`（返回固定顺序、数据和展示状态）
 - `GET /api/config`
 - `POST /api/config`
 
@@ -76,7 +80,8 @@ Controller -> Service -> Task
 - 全局固定导航与粘性顶栏。
 - 暗色/亮色主题和紧凑导航由 localStorage 保存。
 - 快速日志抽屉可在任意页面打开。
-- Token 页面使用指标卡、堆叠趋势和分布图。
+- Token 页面使用指标卡、堆叠趋势和分布图；趋势悬浮卡片自动避让数据柱，仅显示当天有用量的模型，并按用量升序排列。
+- Token 设置以单个弹窗统一管理全部工具，可控制工具展示、Trae 日志目录和 Claude 项目别名/显隐。
 - Chart.js 固定为 4.4.7 并存放于 `static/chart.umd.min.js`，运行时不依赖 CDN。
 - 同步页面使用双库连接卡、表策略工作区和独立任务控制台。
 - 所有页面在 920px 以下切换移动导航，在窄屏下保持可操作。
