@@ -1,1001 +1,132 @@
 {% extends "base.html" %}
-
-{% block page_title %}Token 看板 — dTools{% endblock %}
-
+{% block page_title %}Token 分析 · dTools{% endblock %}
+{% block topbar_title %}Token 分析{% endblock %}
 {% block page_head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-{% endblock %}
-
-{% block page_vars %}{% endblock %}
-
-{% block page_style %}
-<style>
-  /* ===== 工具切换（继承 .ui-chip） ===== */
-  .ts { display: flex; gap: 6px; margin-bottom: 16px; }
-
-  /* ===== 头部（.bi 继承 .btn） ===== */
-  .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  .hdr h1 { font-size: 26px; font-weight: 700; }
-  .ac { display: flex; gap: 6px; }
-
-  /* ===== 统计卡片 ===== */
-  .sg { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .sc {
-    background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
-    padding: 14px 16px; position: relative; overflow: hidden;
-  }
-  .sc .v { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
-  .sc .l { font-size: 12px; color: var(--t2); }
-  .sc .sub { font-size: 11px; color: var(--t2); margin-top: 2px; }
-  .sc .bar {
-    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--a), color-mix(in srgb, var(--a) 40%, transparent));
-  }
-
-  /* ===== 筛选栏（.fc 继承 .ui-chip） ===== */
-  .fb { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-  .fg { display: flex; gap: 4px; flex-wrap: wrap; }
-  .refresh-info { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--t2); }
-
-  /* ===== 图表卡片 ===== */
-  .cc {
-    background: var(--s); border: 1px solid var(--b); border-radius: var(--r);
-    padding: 16px; margin-bottom: 16px;
-  }
-  .cc h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--t2); }
-
-  /* ===== 图例 ===== */
-  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-  .li {
-    display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--t2);
-    cursor: pointer; transition: opacity .15s;
-  }
-  .li.hidden { opacity: .35; text-decoration: line-through; }
-  .d { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-  .pct { font-size: 11px; color: var(--t2); }
-
-  /* ===== 饼图行 ===== */
-  .pr { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  .pie-wrap { text-align: center; overflow: visible; }
-  .pie-wrap canvas { max-width: 100%; overflow: visible; }
-  @media (max-width: 700px) { .pr { grid-template-columns: 1fr; } }
-
-  /* ===== 指标条 ===== */
-  .indicators {
-    display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--t2);
-  }
-  .ind { display: flex; align-items: center; gap: 4px; }
-  .ind-dot { width: 8px; height: 8px; border-radius: 2px; }
-
-  /* ===== Loading ===== */
-  .ld { text-align: center; padding: 40px; color: var(--t2); }
-  .sp {
-    width: 24px; height: 24px; border: 2px solid var(--b);
-    border-top-color: var(--a); border-radius: 50%;
-    animation: spin .6s linear infinite; margin: 0 auto 8px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ===== Tooltip ===== */
-  .tp {
-    position: fixed; background: rgba(0,0,0,.92); color: #fff; font-size: 12px;
-    padding: 10px 14px; border-radius: 6px; pointer-events: none;
-    z-index: 100; opacity: 0; border: 1px solid var(--b);
-    max-width: 300px; line-height: 1.7; font-family: var(--font);
-    transition: opacity .1s;
-  }
-  .tp.show { opacity: 1; }
-  .tp b { color: var(--a); }
-
-  /* ===== 日历弹窗 ===== */
-  .cal-popup {
-    position: absolute; background: var(--s); border: 1px solid var(--b);
-    border-radius: 8px; padding: 12px; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.3);
-  }
-  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .cal-nav button {
-    background: none; border: none; color: var(--t); cursor: pointer;
-    font-size: 16px; padding: 4px 8px; border-radius: 4px;
-  }
-  .cal-nav button:hover { background: var(--s2); }
-  .cal-nav span { font-size: 14px; font-weight: 600; }
-  .cal-table { border-collapse: collapse; width: 100%; }
-  .cal-table th { font-size: 11px; color: var(--t2); font-weight: 500; padding: 4px; }
-  .cal-table td {
-    padding: 4px; text-align: center; font-size: 12px; cursor: pointer;
-    border-radius: 4px; transition: background .1s;
-  }
-  .cal-table td:hover { background: var(--s2); }
-  .cal-table td.other { color: var(--t2); opacity: .4; }
-  .cal-table td.sel { background: var(--a); color: #fff; }
-  .cal-table td.in-range { background: color-mix(in srgb, var(--a) 20%, transparent); }
-  .cal-table td.in-range-start { border-radius: 4px 0 0 4px; }
-  .cal-table td.in-range-end { border-radius: 0 4px 4px 0; }
-
-  /* ===== 设置弹窗（继承 .ui-modal-overlay / .ui-modal） ===== */
-  .msec { margin-bottom: 16px; }
-  .msec h4 { font-size: 13px; color: var(--t2); margin-bottom: 8px; }
-  .mrow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .mrow label { font-size: 12px; min-width: 80px; }
-
-  /* ===== Loading Overlay ===== */
-  .loading-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300;
-    display: none; align-items: center; justify-content: center;
-  }
-  .loading-overlay.show { display: flex; }
-  .lo-box { text-align: center; color: var(--t); }
-  .lo-box .sp { width: 32px; height: 32px; margin-bottom: 12px; }
-
-  /* ===== 响应式 ===== */
-  @media (max-width: 600px) {
-    .page-content { padding: 16px 12px; }
-    .sg { grid-template-columns: repeat(2, 1fr); }
-  }
-</style>
+  <link rel="stylesheet" href="/static/token.css">
+  <script src="/static/chart.umd.min.js" defer></script>
 {% endblock %}
 
 {% block content %}
-<div class="page-content">
-  <!-- 头部 -->
-  <div class="hdr">
-    <h1>Token 看板</h1>
-    <div class="ac">
-      <button class="btn bi" id="settingsBtn" title="设置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-      </button>
-    </div>
+<section class="page-head token-page-head">
+  <div class="page-head-copy">
+    <span class="eyebrow">USAGE INTELLIGENCE</span>
+    <h1>Token 使用洞察</h1>
+    <p>聚合本机 AI 编程工具的用量、缓存效率和项目分布。</p>
   </div>
-
-  <!-- 工具切换 -->
-  <div class="ts" id="toolSwitcher"></div>
-
-  <!-- 筛选栏 -->
-  <div id="filters" class="fb"></div>
-
-  <!-- 主内容 -->
-  <div id="main"></div>
-
-  <!-- 设置弹窗 -->
-  <div class="ui-modal-overlay modal-overlay" id="settingsModal">
-    <div class="ui-modal modal">
-      <h2>&#9881; 设置</h2>
-      <div id="settingsBody"></div>
-      <div class="mb">
-        <button class="btn" onclick="document.getElementById('settingsModal').classList.remove('show')">取消</button>
-        <button class="btn btn-primary" id="settingsSave">保存</button>
-      </div>
+  <div class="page-head-actions">
+    <div class="segmented" id="toolSwitch">
+      <span class="tool-switch-loading">正在识别本地工具…</span>
     </div>
+    <button class="button" id="tokenSettings" type="button">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+      设置
+    </button>
+    <button class="button primary" id="tokenRefresh" type="button">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.6M20 4v4.6h-4.6"/></svg>
+      刷新
+    </button>
   </div>
+</section>
 
-  <!-- Tooltip -->
-  <div class="tp" id="tp"></div>
+<section class="panel token-source-empty" id="tokenSourceEmpty" hidden>
+  <span class="empty-source-icon">○</span>
+  <h2>暂无 Token 数据</h2>
+  <p>未发现可解析的本地 AI 编程工具记录，产生新会话后再刷新即可。</p>
+</section>
 
-  <!-- Loading -->
-  <div class="loading-overlay" id="loadingOverlay">
-    <div class="lo-box">
-      <div class="sp"></div>
-      <div>加载中...</div>
+<section class="token-toolbar panel" id="tokenToolbar">
+  <div class="period-group" id="periodGroup">
+    <button type="button" class="period active" data-period="all">全部</button>
+    <button type="button" class="period" data-period="today">今天</button>
+    <button type="button" class="period" data-period="7d">近 7 天</button>
+    <button type="button" class="period" data-period="30d">近 30 天</button>
+  </div>
+  <span class="toolbar-divider"></span>
+  <label class="date-field">从 <input class="input" id="dateStart" type="date"></label>
+  <label class="date-field">至 <input class="input" id="dateEnd" type="date"></label>
+  <div class="toolbar-spacer"></div>
+  <span class="last-update" id="tokenUpdated">尚未更新</span>
+</section>
+
+<section class="metric-grid" id="tokenMetrics" aria-label="Token 摘要">
+  <article class="metric-card primary-metric">
+    <div class="metric-top"><span>TOTAL TOKENS</span><span class="metric-icon">Σ</span></div>
+    <strong id="metricTotal" class="skeleton">000000</strong>
+    <small id="metricTotalMeta">读取数据中</small>
+  </article>
+  <article class="metric-card">
+    <div class="metric-top"><span>CACHE HIT</span><span class="metric-accent success"></span></div>
+    <strong id="metricCache" class="skeleton">00.0%</strong>
+    <small id="metricCacheMeta">缓存效率</small>
+  </article>
+  <article class="metric-card">
+    <div class="metric-top"><span>SESSIONS</span><span class="metric-accent info"></span></div>
+    <strong id="metricSessions" class="skeleton">000</strong>
+    <small id="metricSessionMeta">有效会话</small>
+  </article>
+  <article class="metric-card">
+    <div class="metric-top"><span>ACTIVE DAYS</span><span class="metric-accent warning"></span></div>
+    <strong id="metricDays" class="skeleton">00</strong>
+    <small id="metricDaysMeta">统计周期</small>
+  </article>
+  <article class="metric-card">
+    <div class="metric-top"><span>PROJECTS</span><span class="metric-accent primary"></span></div>
+    <strong id="metricProjects" class="skeleton">00</strong>
+    <small id="metricProjectsMeta">活跃项目</small>
+  </article>
+</section>
+
+<section class="panel trend-panel" id="tokenTrend">
+  <header class="panel-header">
+    <div class="panel-header-copy"><h2>每日趋势</h2><p>输入、缓存命中与输出的堆叠变化</p></div>
+    <div class="chart-legend" id="dailyLegend"></div>
+  </header>
+  <div class="chart-wrap trend-chart-wrap">
+    <canvas id="dailyChart"></canvas>
+    <div class="chart-empty" id="dailyEmpty">暂无可展示的数据</div>
+  </div>
+</section>
+
+<section class="distribution-grid" id="distributionGrid">
+  <article class="panel distribution-panel">
+    <header class="panel-header">
+      <div class="panel-header-copy"><h2>模型分布</h2><p>按 Token 总量排序</p></div>
+      <span class="badge" id="modelCount">0 个模型</span>
+    </header>
+    <div class="distribution-body">
+      <div class="donut-wrap"><canvas id="modelChart"></canvas><div class="donut-center"><strong id="modelCenter">0</strong><span>模型</span></div></div>
+      <div class="rank-list" id="modelList"></div>
     </div>
-  </div>
+  </article>
+  <article class="panel distribution-panel">
+    <header class="panel-header">
+      <div class="panel-header-copy"><h2>项目分布</h2><p>识别资源消耗最高的项目</p></div>
+      <span class="badge" id="projectCount">0 个项目</span>
+    </header>
+    <div class="distribution-body">
+      <div class="donut-wrap"><canvas id="projectChart"></canvas><div class="donut-center"><strong id="projectCenter">0</strong><span>项目</span></div></div>
+      <div class="rank-list" id="projectList"></div>
+    </div>
+  </article>
+</section>
+
+<div class="loading-layer" id="tokenLoading">
+  <div class="loading-card"><span class="spinner"></span><strong>正在读取本地日志</strong><small>首次解析可能需要几秒</small></div>
+</div>
+
+<div class="modal-backdrop" id="tokenSettingsModal" aria-hidden="true">
+  <section class="modal token-settings-modal" role="dialog" aria-modal="true" aria-labelledby="tokenSettingsTitle">
+    <header class="modal-header">
+      <div><span class="eyebrow">PREFERENCES</span><h2 id="tokenSettingsTitle">Token 设置</h2></div>
+      <button class="icon-button" type="button" data-modal-close="tokenSettingsModal" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </header>
+    <div class="modal-body" id="tokenSettingsBody"></div>
+    <footer class="modal-footer">
+      <button class="button" type="button" data-modal-close="tokenSettingsModal">取消</button>
+      <button class="button primary" id="tokenSettingsSave" type="button">保存设置</button>
+    </footer>
+  </section>
 </div>
 {% endblock %}
 
-{% block page_script %}
-<script>
-/* ===== 全局状态 ===== */
-const $ = id => document.getElementById(id);
-const COLORS = ['#06b6d4','#f59e0b','#10b981','#f43f5e','#8b5cf6',
-                '#ec4899','#14b8a6','#e9730f','#6366f1','#84cc16','#d946ef','#22c55e'];
-
-let data = null, rawData = null;
-let chDailyHidden = new Set();
-let dateFilter = { type: 'all', start: '', end: '' };
-let currentTool = 'claude';
-let refreshInterval = null, switchingTool = false;
-let lastDataHash = '';
-let traePaths = {};
-let displayNames = {}, hiddenProjects = [];
-let calState = { year: 0, month: 0, start: null, end: null };
-let dailyChart = null, modelPieChart = null, projectPieChart = null;
-
-/* ===== 工具函数 ===== */
-function fmt(v) {
-  if (v >= 1e8) return (v / 1e8).toFixed(1) + '亿';
-  if (v >= 1e4) return (v / 1e4).toFixed(1) + '万';
-  return String(Math.round(v));
-}
-
-
-function fmtDate(d) {
-  return new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-}
-
-/* ===== API 调用 ===== */
-async function api(path, opts) {
-  const r = await fetch(path, opts);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
-
-/* ===== 工具切换器 ===== */
-const TOOLS = [
-  { key: 'claude', label: 'Claude Code' },
-  { key: 'trae-intl', label: 'Trae' },
-  { key: 'trae-cn', label: 'Trae CN' },
-];
-
-function renderToolSwitcher() {
-  $('toolSwitcher').innerHTML = TOOLS.map(t =>
-    `<div class="ui-chip${t.key === currentTool ? ' active' : ''}" data-tool="${t.key}">${t.label}</div>`
-  ).join('');
-}
-
-/* ===== 日期筛选 ===== */
-function getFilteredCells() {
-  if (!data || !data.cells) return [];
-  const cells = data.cells;
-  const now = new Date();
-  const today = now.toISOString().substring(0, 10);
-
-  switch (dateFilter.type) {
-    case 'all': return cells;
-    case 'today': return cells.filter(c => c.date === today);
-    case 'yesterday': {
-      const d = new Date(now); d.setDate(d.getDate() - 1);
-      const y = d.toISOString().substring(0, 10);
-      return cells.filter(c => c.date === y);
-    }
-    case 'daybefore': {
-      const d = new Date(now); d.setDate(d.getDate() - 2);
-      const db = d.toISOString().substring(0, 10);
-      return cells.filter(c => c.date === db);
-    }
-    case 'month': {
-      const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().substring(0, 10);
-      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().substring(0, 10);
-      return cells.filter(c => c.date >= first && c.date <= last);
-    }
-    case 'range':
-      return cells.filter(c => c.date >= dateFilter.start && c.date <= dateFilter.end);
-    default: return cells;
-  }
-}
-
-function renderFilters() {
-  const presets = [
-    { type: 'all', label: '全部' },
-    { type: 'today', label: '今天' },
-    { type: 'yesterday', label: '昨天' },
-    { type: 'daybefore', label: '前天' },
-    { type: 'month', label: '当月' },
-  ];
-  let html = '<div class="fg">';
-  presets.forEach(p => {
-    html += `<div class="ui-chip${dateFilter.type === p.type ? ' active' : ''}" data-date="${p.type}">${p.label}</div>`;
-  });
-  // 日历选择器
-  const calLabel = dateFilter.type === 'range'
-    ? `${dateFilter.start} ~ ${dateFilter.end}` : '选择日期';
-  html += `<div class="ui-chip${dateFilter.type === 'range' ? ' active' : ''}" id="calTrigger">${calLabel}</div>`;
-  html += '</div>';
-
-  // 刷新信息
-  html += `<div class="refresh-info">
-    <span id="updateTime"></span>
-    <button class="btn" id="refreshBtn" style="font-size:11px;padding:3px 8px">刷新</button>
-  </div>`;
-
-  $('filters').innerHTML = html;
-}
-
-/* ===== 日历选择器 ===== */
-function fmtISO(d) {
-  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function parseISO(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
-
-function toggleCal(anchor) {
-  const existing = $('calPopup');
-  if (existing) { existing.remove(); return; }
-
-  const now = new Date();
-  calState = {
-    year: now.getFullYear(), month: now.getMonth(),
-    start: dateFilter.type === 'range' ? parseISO(dateFilter.start) : null,
-    end: dateFilter.type === 'range' ? parseISO(dateFilter.end) : null,
-  };
-  renderCal(anchor);
-}
-
-function renderCal(anchor) {
-  let popup = $('calPopup');
-  if (!popup) {
-    popup = document.createElement('div');
-    popup.id = 'calPopup';
-    popup.className = 'cal-popup';
-    anchor.parentElement.style.position = 'relative';
-    anchor.parentElement.appendChild(popup);
-  }
-
-  const { year, month, start, end } = calState;
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthLabel = `${year}年${month + 1}月`;
-
-  let html = `<div class="cal-nav">
-    <button onclick="calNav(-1)">&#8249;</button>
-    <span>${monthLabel}</span>
-    <button onclick="calNav(1)">&#8250;</button>
-  </div>`;
-  html += '<table class="cal-table"><thead><tr>';
-  ['日','一','二','三','四','五','六'].forEach(d => html += `<th>${d}</th>`);
-  html += '</tr></thead><tbody>';
-
-  let day = 1 - firstDay;
-  for (let w = 0; w < 6; w++) {
-    html += '<tr>';
-    for (let d = 0; d < 7; d++) {
-      if (day < 1 || day > daysInMonth) {
-        const o = day < 1 ? new Date(year, month, day).getDate() : day - daysInMonth;
-        html += `<td class="other">${o}</td>`;
-      } else {
-        const dt = new Date(year, month, day);
-        const iso = fmtISO(dt);
-        let cls = '';
-        if (start && iso === fmtISO(start)) cls = 'sel in-range-start';
-        else if (end && iso === fmtISO(end)) cls = 'sel in-range-end';
-        else if (start && end && iso > fmtISO(start) && iso < fmtISO(end)) cls = 'in-range';
-        html += `<td class="${cls}" data-date="${iso}">${day}</td>`;
-      }
-      day++;
-    }
-    html += '</tr>';
-    if (day > daysInMonth) break;
-  }
-  html += '</tbody></table>';
-  popup.innerHTML = html;
-}
-
-function calNav(delta) {
-  calState.month += delta;
-  if (calState.month < 0) { calState.month = 11; calState.year--; }
-  if (calState.month > 11) { calState.month = 0; calState.year++; }
-  renderCal($('calTrigger'));
-}
-
-/* ===== 数据聚合（客户端） ===== */
-function getModelTotals(cells) {
-  const map = {};
-  cells.forEach(c => {
-    if (!map[c.model]) map[c.model] = { name: c.model, total: 0, input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
-    const m = map[c.model];
-    m.total += c.total; m.input += c.input; m.output += c.output;
-    m.cacheRead += c.cacheRead; m.cacheCreate += c.cacheCreate;
-  });
-  return Object.values(map).sort((a, b) => b.total - a.total);
-}
-
-function getProjectTotals(cells) {
-  const map = {};
-  cells.forEach(c => {
-    if (!map[c.project]) map[c.project] = { name: c.project, total: 0, input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
-    const p = map[c.project];
-    p.total += c.total; p.input += c.input; p.output += c.output;
-    p.cacheRead += c.cacheRead; p.cacheCreate += c.cacheCreate;
-  });
-  return Object.values(map).sort((a, b) => b.total - a.total);
-}
-
-/* ===== 渲染全部 ===== */
-function renderAll() {
-  const cells = getFilteredCells();
-  const models = getModelTotals(cells);
-  const projects = getProjectTotals(cells);
-  const s = data.summary;
-
-  // 计算缓存命中率
-  let totalInput = 0, totalCacheRead = 0, totalCacheCreate = 0;
-  cells.forEach(c => { totalInput += c.input; totalCacheRead += c.cacheRead; totalCacheCreate += c.cacheCreate; });
-  const cacheRate = (totalInput + totalCacheRead) > 0
-    ? (totalCacheRead / (totalInput + totalCacheRead) * 100).toFixed(1) : '0.0';
-
-  // 统计卡片
-  const isClaude = currentTool === 'claude';
-  let html = '<div class="sg">';
-  html += `<div class="sc"><div class="v">${fmt(s.grandTotal)}</div><div class="l">Token 总量</div><div class="sub">${s.totalSessions} 会话 · ${s.totalDays} 天</div><div class="bar"></div></div>`;
-  html += `<div class="sc"><div class="v">${s.totalDays}</div><div class="l">活跃天数</div><div class="sub">${s.totalModels} 模型 · ${s.totalProjects} 项目</div></div>`;
-  html += `<div class="sc"><div class="v">${s.totalModels}</div><div class="l">模型数</div></div>`;
-  html += `<div class="sc"><div class="v">${s.totalProjects}</div><div class="l">项目数</div></div>`;
-  html += `<div class="sc"><div class="v" style="color:#10b981">${cacheRate}%</div><div class="l">缓存命中率</div><div class="sub">命中 ${fmt(totalCacheRead)} · 创建 ${fmt(totalCacheCreate)}</div></div>`;
-  html += '</div>';
-
-  // 每日趋势图
-  html += `<div class="cc"><h3>每日 Token 趋势</h3><div class="legend" id="legDaily"></div><div style="position:relative;height:320px"><canvas id="chDaily"></canvas></div></div>`;
-
-  // 饼图（仅 Claude）
-  if (isClaude) {
-    html += `<div class="pr">
-      <div class="cc"><h3>模型分布</h3><div class="pie-wrap" style="position:relative;height:280px"><canvas id="chModel"></canvas></div><div class="legend" id="legModel"></div></div>
-      <div class="cc"><h3>项目分布</h3><div class="pie-wrap" style="position:relative;height:280px"><canvas id="chProject"></canvas></div><div class="legend" id="legProject"></div></div>
-    </div>`;
-  }
-
-
-
-  $('main').innerHTML = html;
-
-  // 绘制图表
-  drawDaily(cells, models);
-  if (isClaude) {
-    drawPie('chModel', models, m => m.name, m => m.total, 'legModel');
-    drawPie('chProject', projects, p => p.name, p => p.total, 'legProject');
-  }
-}
-
-/* ===== Chart.js 全局配置 ===== */
-function getThemeColors() {
-  const cs = getComputedStyle(document.documentElement);
-  return {
-    text: cs.getPropertyValue('--t').trim(),
-    text2: cs.getPropertyValue('--t2').trim(),
-    grid: cs.getPropertyValue('--b').trim(),
-    bg: cs.getPropertyValue('--s').trim(),
-  };
-}
-
-/* ===== 每日堆叠条形图 ===== */
-function drawDaily(cells, models) {
-  const canvas = $('chDaily');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const tc = getThemeColors();
-
-  // 按日期分组
-  const dateMap = {};
-  cells.forEach(c => {
-    if (chDailyHidden.has(c.model)) return;
-    if (!dateMap[c.date]) dateMap[c.date] = {};
-    if (!dateMap[c.date][c.model]) dateMap[c.date][c.model] = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
-    const d = dateMap[c.date][c.model];
-    d.input += c.input; d.output += c.output; d.cacheRead += c.cacheRead; d.cacheCreate += c.cacheCreate;
-  });
-
-  const dates = Object.keys(dateMap).sort();
-  if (!dates.length) { if (dailyChart) { dailyChart.destroy(); dailyChart = null; } return; }
-
-  // 完整模型列表（按总量排序，颜色索引与图例一致）
-  const modelColorMap = {};
-  models.forEach((m, mi) => { modelColorMap[m.name] = COLORS[mi % COLORS.length]; });
-
-  // 获取可见模型列表
-  const visibleModels = models.filter(m => !chDailyHidden.has(m.name)).map(m => m.name);
-  if (!visibleModels.length) { if (dailyChart) { dailyChart.destroy(); dailyChart = null; } return; }
-
-  // 构建 Chart.js 数据集
-  const datasets = [];
-  visibleModels.forEach((model) => {
-    const baseColor = modelColorMap[model];
-    // 输入（缓存未命中）
-    datasets.push({
-      label: model + ' 输入',
-      data: dates.map(d => (dateMap[d][model]?.input || 0) + (dateMap[d][model]?.cacheCreate || 0)),
-      backgroundColor: baseColor,
-      stack: 'stack',
-      barPercentage: 0.7,
-      hoverBorderWidth: 2,
-      hoverBorderColor: '#fff',
-    });
-    // 缓存命中
-    datasets.push({
-      label: model + ' 缓存',
-      data: dates.map(d => dateMap[d][model]?.cacheRead || 0),
-      backgroundColor: lightenColor(baseColor, 0.45),
-      stack: 'stack',
-      barPercentage: 0.7,
-      hoverBorderWidth: 2,
-      hoverBorderColor: '#fff',
-    });
-    // 输出
-    datasets.push({
-      label: model + ' 输出',
-      data: dates.map(d => dateMap[d][model]?.output || 0),
-      backgroundColor: lightenColor(baseColor, 0.2),
-      stack: 'stack',
-      barPercentage: 0.7,
-      hoverBorderWidth: 2,
-      hoverBorderColor: '#fff',
-    });
-  });
-
-  if (dailyChart) dailyChart.destroy();
-  dailyChart = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: dates.map(fmtDate), datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: (items) => items[0]?.label || '',
-            label: (item) => {
-              const parts = item.dataset.label.split(' ');
-              const segLabel = parts.slice(1).join(' ');
-              return `${parts[0]} ${segLabel}: ${fmt(item.raw)}`;
-            },
-            afterBody: (items) => {
-              const idx = items[0]?.dataIndex;
-              if (idx === undefined || !dates[idx]) return [];
-              const day = dateMap[dates[idx]];
-              if (!day) return [];
-              let inpMiss = 0, cacheHit = 0, out = 0;
-              Object.keys(day).forEach(model => {
-                inpMiss += day[model].input + day[model].cacheCreate;
-                cacheHit += day[model].cacheRead;
-                out += day[model].output;
-              });
-              const total = inpMiss + cacheHit + out;
-              const totalInp = inpMiss + cacheHit;
-              const rate = totalInp > 0 ? (cacheHit / totalInp * 100).toFixed(1) : '0.0';
-              return [
-                `输入(未命中): ${fmt(inpMiss)}`,
-                `输入(命中): ${fmt(cacheHit)}`,
-                `输出: ${fmt(out)}`,
-                `合计: ${fmt(total)}`,
-                `缓存命中率: ${rate}%`
-              ];
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { color: tc.text2, font: { size: 11 } },
-          grid: { display: false },
-        },
-        y: {
-          stacked: true,
-          ticks: {
-            color: tc.text2,
-            font: { size: 11 },
-            callback: v => fmt(v),
-          },
-          grid: { color: tc.grid + '40' },
-        },
-      },
-    },
-    plugins: [{
-      id: 'dailyTopLabels',
-      afterDraw(chart) {
-        const { ctx, chartArea } = chart;
-        const tc = getThemeColors();
-        ctx.save();
-        ctx.textAlign = 'center';
-        for (let i = 0; i < dates.length; i++) {
-          const day = dateMap[dates[i]];
-          if (!day) continue;
-          let inpMiss = 0, cacheHit = 0, out = 0;
-          Object.keys(day).forEach(model => {
-            inpMiss += day[model].input + day[model].cacheCreate;
-            cacheHit += day[model].cacheRead;
-            out += day[model].output;
-          });
-          const total = inpMiss + cacheHit + out;
-          if (total === 0) continue;
-          const lastMeta = chart.getDatasetMeta(chart.data.datasets.length - 1);
-          const bar = lastMeta.data[i];
-          if (!bar || bar.hidden || bar.y - 22 <= chartArea.top) continue;
-          const totalInp = inpMiss + cacheHit;
-          const rate = totalInp > 0 ? (cacheHit / totalInp * 100).toFixed(1) : '0.0';
-          // 第 1 行：合计
-          ctx.fillStyle = tc.text;
-          ctx.font = 'bold 10px sans-serif';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(`合计 ${fmt(total)}`, bar.x, bar.y - 2);
-          // 第 2 行：命中/未命中/输出/命中率
-          ctx.fillStyle = tc.text2;
-          ctx.font = '8px sans-serif';
-          ctx.fillText(`↑${fmt(cacheHit)} ↓${fmt(inpMiss)} →${fmt(out)} | ${rate}%`, bar.x, bar.y - 14);
-        }
-        ctx.restore();
-      },
-    }],
-  });
-
-  // 图例
-  renderDailyLegend(models);
-}
-
-function renderDailyLegend(models) {
-  const el = $('legDaily');
-  if (!el) return;
-  el.innerHTML = models.map((m, i) => {
-    const hidden = chDailyHidden.has(m.name);
-    return `<div class="li${hidden ? ' hidden' : ''}" data-filter="daily:${m.name}">
-      <div class="d" style="background:${COLORS[i % COLORS.length]}"></div>${escHtml(m.name)}
-    </div>`;
-  }).join('');
-}
-
-/* ===== 饼图 ===== */
-function drawPie(canvasId, items, nameFn, valFn, legendId) {
-  const canvas = $(canvasId);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const tc = getThemeColors();
-
-  const filtered = items.filter(i => valFn(i) > 0);
-  if (!filtered.length) {
-    if (canvasId === 'chModel' && modelPieChart) { modelPieChart.destroy(); modelPieChart = null; }
-    if (canvasId === 'chProject' && projectPieChart) { projectPieChart.destroy(); projectPieChart = null; }
-    return;
-  }
-
-  const labels = filtered.map(nameFn);
-  const values = filtered.map(valFn);
-  const colors = filtered.map((_, i) => COLORS[i % COLORS.length]);
-
-  let chartInstance;
-  if (canvasId === 'chModel' && modelPieChart) modelPieChart.destroy();
-  if (canvasId === 'chProject' && projectPieChart) projectPieChart.destroy();
-
-  chartInstance = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverBorderWidth: 3, hoverBorderColor: '#fff', hoverOffset: 8 }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '38%',
-      layout: { padding: 14 },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (item) => {
-              const total = item.dataset.data.reduce((s, v) => s + v, 0);
-              const pct = ((item.raw / total) * 100).toFixed(1);
-              return `${item.label}: ${fmt(item.raw)} (${pct}%)`;
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (canvasId === 'chModel') modelPieChart = chartInstance;
-  if (canvasId === 'chProject') projectPieChart = chartInstance;
-
-  // 图例
-  const legendEl = $(legendId);
-  if (legendEl) {
-    const total = values.reduce((s, v) => s + v, 0);
-    legendEl.innerHTML = filtered.map((item, i) => {
-      const pct = total > 0 ? ((valFn(item) / total) * 100).toFixed(1) : '0.0';
-      return `<div class="li" data-filter="pie:${nameFn(item)}">
-        <div class="d" style="background:${colors[i]}"></div>${escHtml(nameFn(item))}
-        <span class="pct">${pct}%</span>
-      </div>`;
-    }).join('');
-  }
-}
-
-/* ===== 颜色工具 ===== */
-function lightenColor(hex, f) {
-  hex = hex.replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  const nr = Math.round(r + (255 - r) * f);
-  const ng = Math.round(g + (255 - g) * f);
-  const nb = Math.round(b + (255 - b) * f);
-  return `rgb(${nr},${ng},${nb})`;
-}
-
-/* ===== 设置系统 ===== */
-function loadSettings() {
-  try {
-    displayNames = JSON.parse(localStorage.getItem('csd-names') || '{}');
-    hiddenProjects = JSON.parse(localStorage.getItem('csd-hidden') || '[]');
-  } catch { displayNames = {}; hiddenProjects = []; }
-}
-
-function saveSettings() {
-  try {
-    localStorage.setItem('csd-names', JSON.stringify(displayNames));
-    localStorage.setItem('csd-hidden', JSON.stringify(hiddenProjects));
-  } catch {}
-}
-
-function applySettings(raw) {
-  const d = JSON.parse(JSON.stringify(raw));
-  if (currentTool !== 'claude') return d;
-
-  // 过滤隐藏项目
-  d.cells = d.cells.filter(c => !hiddenProjects.includes(c.project));
-
-  // 重命名项目
-  d.cells = d.cells.map(c => ({
-    ...c, project: displayNames[c.project] || c.project,
-  }));
-
-  // 重新聚合 cells（去重合并同名项目）
-  const cellMap = {};
-  d.cells.forEach(c => {
-    const k = `${c.date}|${c.model}|${c.project}`;
-    if (!cellMap[k]) cellMap[k] = { ...c, sessions: 0 };
-    else {
-      cellMap[k].input += c.input; cellMap[k].output += c.output;
-      cellMap[k].cacheRead += c.cacheRead; cellMap[k].cacheCreate += c.cacheCreate;
-      cellMap[k].total += c.total;
-    }
-    cellMap[k].sessions += c.sessions;
-  });
-  d.cells = Object.values(cellMap).sort((a, b) => a.date.localeCompare(b.date));
-
-  // 重新聚合 projects
-  const projMap = {};
-  d.cells.forEach(c => {
-    if (!projMap[c.project]) projMap[c.project] = {
-      name: c.project, total: 0, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, sessions: 0,
-    };
-    const p = projMap[c.project];
-    p.total += c.total; p.input += c.input; p.output += c.output;
-    p.cacheRead += c.cacheRead; p.cacheCreate += c.cacheCreate; p.sessions += c.sessions;
-  });
-  d.projects = Object.values(projMap).sort((a, b) => a.name.localeCompare(b.name));
-
-  // 更新 summary
-  d.summary.totalProjects = d.projects.length;
-  d.summary.totalDays = new Set(d.cells.map(c => c.date)).size;
-  d.summary.totalRecords = d.cells.length;
-  d.summary.grandTotal = d.cells.reduce((s, c) => s + c.total, 0);
-  d.summary.totalModels = new Set(d.cells.map(c => c.model)).size;
-
-  return d;
-}
-
-function renderSettings() {
-  let html = '';
-  if (currentTool === 'claude') {
-    html += '<div class="msec"><h4>项目显示</h4>';
-    const projects = rawData?.projects || [];
-    projects.forEach(p => {
-      const hidden = hiddenProjects.includes(p.name);
-      const origName = p.name;
-      const displayName = displayNames[p.name] || p.name;
-      const renamed = displayName !== origName;
-      html += `<div class="mrow">
-        <input type="checkbox" class="ui-checkbox" ${hidden ? '' : 'checked'} data-sproj="${escHtml(origName)}">
-        <input type="text" class="ui-input-sm" value="${escHtml(displayName)}" data-sname="${escHtml(origName)}" style="max-width:200px">
-        ${renamed ? `<span style="font-size:10px;color:var(--t3)">${escHtml(origName)}</span>` : ''}
-      </div>`;
-    });
-    html += '</div>';
-  } else {
-    const toolLabel = currentTool === 'trae-intl' ? 'Trae' : 'Trae CN';
-    const toolKey = currentTool;
-    html += `<div class="msec"><h4>${toolLabel} 日志路径</h4>`;
-    html += `<div class="mrow"><input type="text" class="ui-input-sm" id="traePathInput" value="${escHtml(traePaths[toolKey] || '')}" placeholder="留空使用默认路径"></div>`;
-    html += '</div>';
-  }
-  $('settingsBody').innerHTML = html;
-}
-
-/* ===== 更新时间 ===== */
-function updateRefreshTime() {
-  const el = $('updateTime');
-  if (el) el.textContent = new Date().toLocaleTimeString('zh-CN');
-}
-
-/* ===== 刷新数据 ===== */
-async function refreshData() {
-  if (switchingTool) return;
-  try {
-    const raw = await api(`/api/tokens?tool=${currentTool}`);
-    updateRefreshTime(); // 无论数据是否变化都更新时间
-    const hash = JSON.stringify(raw);
-    if (hash === lastDataHash) return; // 数据没变，跳过渲染
-    lastDataHash = hash;
-    rawData = raw;
-    data = applySettings(raw);
-    renderFilters();
-    renderAll();
-  } catch (e) { console.error('刷新失败:', e); }
-}
-
-/* ===== 初始化 ===== */
-async function init() {
-  loadSettings();
-  renderToolSwitcher();
-
-  try {
-    traePaths = await api('/api/config');
-  } catch {}
-
-  $('loadingOverlay').classList.add('show');
-  try {
-    const raw = await api(`/api/tokens?tool=${currentTool}`);
-    rawData = raw;
-    data = applySettings(raw);
-    lastDataHash = JSON.stringify(raw);
-    renderFilters();
-    renderAll();
-    updateRefreshTime();
-  } catch (e) {
-    $('main').innerHTML = `<div class="ld">加载失败: ${escHtml(e.message)}</div>`;
-  } finally {
-    $('loadingOverlay').classList.remove('show');
-  }
-
-  // 5 秒轮询
-  refreshInterval = setInterval(refreshData, 5000);
-}
-
-/* ===== 主题切换 ===== */
-
-/* ===== 事件委托 ===== */
-document.addEventListener('click', async (e) => {
-  const target = e.target;
-
-  // 工具切换
-  const tc = target.closest('.ui-chip[data-tool]');
-  if (tc) {
-    const tool = tc.dataset.tool;
-    if (tool === currentTool || switchingTool) return;
-    currentTool = tool;
-    chDailyHidden.clear();
-    dateFilter = { type: 'all', start: '', end: '' };
-    switchingTool = true;
-    if (refreshInterval) clearInterval(refreshInterval);
-
-    $('loadingOverlay').classList.add('show');
-    renderToolSwitcher();
-
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 20000);
-      const raw = await api(`/api/tokens?tool=${currentTool}`, { signal: ctrl.signal });
-      clearTimeout(timer);
-      rawData = raw;
-      data = applySettings(raw);
-      lastDataHash = JSON.stringify(raw);
-      renderFilters();
-      renderAll();
-      updateRefreshTime();
-    } catch (err) {
-      $('main').innerHTML = `<div class="ld">${err.name === 'AbortError' ? '请求超时' : '加载失败: ' + escHtml(err.message)}</div>`;
-    } finally {
-      $('loadingOverlay').classList.remove('show');
-      switchingTool = false;
-      refreshInterval = setInterval(refreshData, 5000);
-    }
-    return;
-  }
-
-  // 日期筛选
-  const dateChip = target.closest('.ui-chip[data-date]');
-  if (dateChip) {
-    dateFilter = { type: dateChip.dataset.date, start: '', end: '' };
-    const popup = $('calPopup'); if (popup) popup.remove();
-    renderFilters();
-    renderAll();
-    return;
-  }
-
-  // 日历触发
-  if (target.closest('#calTrigger')) {
-    toggleCal(target.closest('#calTrigger'));
-    return;
-  }
-
-  // 日历内部点击
-  if (target.closest('#calPopup')) {
-    const nav = target.closest('button');
-    if (nav) { calNav(nav.textContent === '‹' ? -1 : 1); return; }
-    const dayCell = target.closest('td[data-date]');
-    if (dayCell) {
-      const d = parseISO(dayCell.dataset.date);
-      if (!calState.start || calState.end) {
-        calState.start = d; calState.end = null;
-      } else {
-        calState.end = d;
-        if (calState.end < calState.start) { [calState.start, calState.end] = [calState.end, calState.start]; }
-        dateFilter = { type: 'range', start: fmtISO(calState.start), end: fmtISO(calState.end) };
-        $('calPopup')?.remove();
-        renderFilters();
-        renderAll();
-        return;
-      }
-      renderCal($('calTrigger'));
-    }
-    return;
-  }
-
-  // 点击外部关闭日历
-  if (!target.closest('#calTrigger') && $('calPopup')) {
-    $('calPopup').remove();
-  }
-
-  // 图例切换
-  const legendItem = target.closest('.li[data-filter]');
-  if (legendItem) {
-    const [type, name] = legendItem.dataset.filter.split(':');
-    if (type === 'daily') {
-      chDailyHidden.has(name) ? chDailyHidden.delete(name) : chDailyHidden.add(name);
-      const cells = getFilteredCells();
-      drawDaily(cells, getModelTotals(cells));
-      return;
-    }
-  }
-
-  // 刷新按钮
-  if (target.closest('#refreshBtn')) {
-    refreshData();
-    return;
-  }
-
-
-  // 设置按钮
-  if (target.closest('#settingsBtn')) {
-    renderSettings();
-    $('settingsModal').classList.add('show');
-    return;
-  }
-
-  // 关闭设置弹窗
-  if (target.classList.contains('ui-modal-overlay')) {
-    target.classList.remove('show');
-    return;
-  }
-
-  // 保存设置
-  if (target.closest('#settingsSave')) {
-    if (currentTool === 'claude') {
-      document.querySelectorAll('[data-sproj]').forEach(cb => {
-        const name = cb.dataset.sproj;
-        if (cb.checked) hiddenProjects = hiddenProjects.filter(n => n !== name);
-        else if (!hiddenProjects.includes(name)) hiddenProjects.push(name);
-      });
-      document.querySelectorAll('[data-sname]').forEach(input => {
-        const orig = input.dataset.sname;
-        const val = input.value.trim();
-        if (val && val !== orig) displayNames[orig] = val;
-        else delete displayNames[orig];
-      });
-      saveSettings();
-    } else {
-      const pathInput = $('traePathInput');
-      if (pathInput) {
-        const toolKey = currentTool;
-        traePaths[toolKey] = pathInput.value.trim();
-        try {
-          await fetch('/api/config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(traePaths),
-          });
-        } catch {}
-      }
-    }
-    if (rawData) data = applySettings(rawData);
-    renderAll();
-    $('settingsModal').classList.remove('show');
-    return;
-  }
-});
-
-/* ===== 启动 ===== */
-init();
-</script>
-{% endblock %}
+{% block page_script %}<script src="/static/token.js" defer></script>{% endblock %}

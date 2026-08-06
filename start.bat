@@ -5,7 +5,7 @@ title dTools
 cls
 echo.
 echo ==============================
-echo   dTools v2.0
+echo   dTools v3.0
 echo ==============================
 echo.
 echo  1. Start
@@ -27,7 +27,7 @@ goto MENU
 cls
 echo.
 echo ==============================
-echo   Starting...
+echo   Starting dTools v3.0...
 echo ==============================
 echo.
 start http://127.0.0.1:3456

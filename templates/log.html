@@ -1,252 +1,43 @@
 {% extends "base.html" %}
-
-{% block page_title %}日志 — dTools{% endblock %}
-
-{% block page_style %}
-<style>
-  /* 头部 */
-  .hdr {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
-  }
-  .hdr h1 { font-size: 24px; font-weight: 700; }
-  .hdr-actions { display: flex; gap: 8px; align-items: center; }
-  .hdr-actions .btn.active { background: var(--a); color: #fff; border-color: var(--a); }
-
-  /* 搜索栏（继承 .ui-input） */
-  .search-bar {
-    display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
-  }
-  .search-input { flex: 1; }
-
-  /* 统计 */
-  .stats {
-    display: flex; gap: 16px; font-size: 12px; color: var(--t2); margin-bottom: 12px;
-  }
-  .stats .count { font-weight: 600; color: var(--t); }
-
-  /* 级别筛选（继承 .ui-chip） */
-  .level-filters { display: flex; gap: 4px; }
-
-  /* 日志容器（继承 .ui-panel） */
-  .log-container { overflow: hidden; }
-  .log-list {
-    height: calc(100vh - 260px); min-height: 300px;
-    overflow-y: auto; padding: 8px 0;
-    font-size: 13px; line-height: 1.6;
-  }
-
-  /* 日志条目 */
-  .log-entry {
-    display: flex; gap: 8px; padding: 3px 14px;
-    transition: background .1s;
-  }
-  .log-entry:hover { background: var(--s2); }
-  .log-time {
-    color: var(--t3); font-size: 12px; flex-shrink: 0;
-    font-family: var(--mono); min-width: 64px;
-  }
-  .log-level {
-    flex-shrink: 0; width: 6px; border-radius: 3px; margin-top: 7px; height: 6px;
-  }
-  .log-level.info { background: var(--info); }
-  .log-level.ok { background: var(--ok); }
-  .log-level.warn { background: var(--warn); }
-  .log-level.err { background: var(--err); }
-  .log-source {
-    color: var(--a); font-size: 11px; flex-shrink: 0; min-width: 40px;
-    font-weight: 600; margin-top: 1px;
-  }
-  .log-msg { flex: 1; word-break: break-all; }
-
-  /* 搜索高亮 */
-  .log-container mark {
-    background: color-mix(in srgb, var(--warn) 30%, transparent); color: var(--t);
-    border-radius: 2px; padding: 0 1px;
-  }
-
-  /* 空状态 */
-  .empty {
-    text-align: center; padding: 60px 20px; color: var(--t3); font-size: 14px;
-  }
-
-  @media (max-width: 600px) {
-    .hdr { flex-direction: column; align-items: flex-start; }
-    .log-source { display: none; }
-  }
-</style>
-{% endblock %}
+{% block page_title %}运行日志 · dTools{% endblock %}
+{% block topbar_title %}运行日志{% endblock %}
+{% block page_head %}<link rel="stylesheet" href="/static/log.css">{% endblock %}
 
 {% block content %}
-<div class="page-content">
-  <div class="hdr">
-    <h1>日志</h1>
-    <div class="hdr-actions">
-      <button class="btn" id="autoScrollBtn" onclick="toggleAutoScroll()">自动滚动</button>
-      <button class="btn" onclick="copyLogs()">复制</button>
-      <button class="btn" onclick="clearLogs()">清空</button>
-    </div>
+<section class="page-head">
+  <div class="page-head-copy">
+    <span class="eyebrow">OBSERVABILITY</span>
+    <h1>运行日志</h1>
+    <p>集中查看 Token 解析、数据库同步和系统事件。</p>
   </div>
+  <div class="page-head-actions">
+    <button class="button" id="copyLogs" type="button"><svg viewBox="0 0 24 24"><path d="M8 8h11v11H8zM5 16H4V5h11v1"/></svg>复制当前结果</button>
+    <button class="button danger" id="clearLogs" type="button"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg>清空日志</button>
+  </div>
+</section>
 
-  <div class="search-bar">
-    <input class="ui-input search-input" id="searchInput" placeholder="搜索日志内容..." oninput="renderLogs()">
-    <div class="level-filters">
-      <div class="ui-chip active info-chip" data-level="info" onclick="toggleLevel(this)">信息</div>
-      <div class="ui-chip active ok-chip" data-level="ok" onclick="toggleLevel(this)">成功</div>
-      <div class="ui-chip active warn-chip" data-level="warn" onclick="toggleLevel(this)">警告</div>
-      <div class="ui-chip active err-chip" data-level="err" onclick="toggleLevel(this)">错误</div>
-    </div>
-  </div>
+<section class="log-overview">
+  <article class="overview-card"><span>全部事件</span><strong id="logTotal">0</strong><small>最近 7 天，内存最多 3000 条</small></article>
+  <article class="overview-card"><span>匹配结果</span><strong id="logMatched">0</strong><small>当前筛选条件</small></article>
+  <article class="overview-card"><span>错误与警告</span><strong id="logIssues">0</strong><small>需要关注的事件</small></article>
+  <article class="overview-card status-card"><span>实时状态</span><strong><i class="live-dot"></i>监听中</strong><small id="logLastUpdate">等待首次拉取</small></article>
+</section>
 
-  <div class="stats">
-    <span>共 <span class="count" id="totalCount">0</span> 条</span>
-    <span>匹配 <span class="count" id="matchCount">0</span> 条</span>
-  </div>
-
-  <div class="ui-panel log-container">
-    <div class="log-list" id="logList">
-      <div class="empty">暂无日志，等待操作...</div>
+<section class="panel log-workspace">
+  <header class="log-toolbar">
+    <div class="log-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input id="logSearch" type="search" placeholder="搜索消息或来源，支持空格分词"></div>
+    <div class="level-filter" id="levelFilter">
+      <button class="level-chip active" type="button" data-level="info"><i class="info"></i>信息</button>
+      <button class="level-chip active" type="button" data-level="ok"><i class="ok"></i>成功</button>
+      <button class="level-chip active" type="button" data-level="warn"><i class="warn"></i>警告</button>
+      <button class="level-chip active" type="button" data-level="err"><i class="err"></i>错误</button>
     </div>
-  </div>
-</div>
+    <select class="select source-filter" id="sourceFilter"><option value="">全部来源</option></select>
+    <label class="auto-scroll"><input id="autoScroll" type="checkbox" checked><span></span>自动滚动</label>
+  </header>
+  <div class="log-table-head"><span>时间</span><span>级别</span><span>来源</span><span>消息</span></div>
+  <div class="log-stream" id="logStream"><div class="empty-state">正在加载日志...</div></div>
+</section>
 {% endblock %}
 
-{% block page_script %}
-<script>
-const $ = id => document.getElementById(id);
-let logs = [];
-let autoScroll = true;
-let activeLevels = new Set(['info', 'ok', 'warn', 'err']);
-let lastTs = 0;
-let pollTimer = null;
-
-/* 自动滚动 */
-function toggleAutoScroll() {
-  autoScroll = !autoScroll;
-  $('autoScrollBtn').classList.toggle('active', autoScroll);
-}
-
-/* 级别筛选 */
-function toggleLevel(el) {
-  const level = el.dataset.level;
-  if (activeLevels.has(level)) {
-    activeLevels.delete(level);
-    el.classList.remove('active', 'info-chip', 'ok-chip', 'warn-chip', 'err-chip');
-  } else {
-    activeLevels.add(level);
-    el.classList.add('active', level + '-chip');
-  }
-  renderLogs();
-}
-
-
-
-/* 渲染日志 */
-function renderLogs() {
-  const query = $('searchInput').value.trim();
-  const list = $('logList');
-
-  const filtered = logs.filter(e => {
-    if (!activeLevels.has(e.level)) return false;
-    if (query) {
-      const q = query.toLowerCase();
-      const text = (e.msg + ' ' + e.source).toLowerCase();
-      if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
-    }
-    return true;
-  });
-
-  $('totalCount').textContent = logs.length;
-  $('matchCount').textContent = filtered.length;
-
-  if (!filtered.length) {
-    list.innerHTML = '<div class="empty">' + (logs.length ? '无匹配日志' : '暂无日志，等待操作...') + '</div>';
-    return;
-  }
-
-  list.innerHTML = filtered.map(e => {
-    const msg = query ? highlightText(e.msg, query) : escHtml(e.msg);
-    return '<div class="log-entry">' +
-      '<span class="log-time">' + escHtml(e.time) + '</span>' +
-      '<span class="log-level ' + e.level + '"></span>' +
-      '<span class="log-source">' + escHtml(e.source) + '</span>' +
-      '<span class="log-msg">' + msg + '</span>' +
-    '</div>';
-  }).join('');
-
-  if (autoScroll) {
-    list.scrollTop = list.scrollHeight;
-  }
-}
-
-/* 增量轮询 */
-async function pollLogs() {
-  try {
-    const r = await fetch('/api/logs/since?ts=' + lastTs);
-    const newLogs = await r.json();
-    if (newLogs.length) {
-      logs.push(...newLogs);
-      lastTs = newLogs[newLogs.length - 1].ts;
-      renderLogs();
-    }
-  } catch {}
-}
-
-/* 清空日志 */
-async function clearLogs() {
-  try {
-    await fetch('/api/logs/clear', { method: 'POST' });
-    logs = [];
-    lastTs = 0;
-    renderLogs();
-    window.dispatchEvent(new CustomEvent('logscleared'));
-  } catch {}
-}
-
-/* 复制日志 */
-async function copyLogs() {
-  const query = $('searchInput').value.trim();
-  const filtered = logs.filter(e => {
-    if (!activeLevels.has(e.level)) return false;
-    if (query) {
-      const q = query.toLowerCase();
-      const text = (e.msg + ' ' + e.source).toLowerCase();
-      if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
-    }
-    return true;
-  });
-  const text = filtered.map(e => e.time + ' [' + e.level.toUpperCase() + '] [' + e.source + '] ' + e.msg).join('\n');
-  try {
-    await navigator.clipboard.writeText(text);
-    const btn = document.querySelector('.hdr-actions .btn:nth-child(2)');
-    btn.textContent = '已复制 ✓';
-    setTimeout(() => { btn.textContent = '复制'; }, 1500);
-  } catch {
-    const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
-  }
-}
-
-/* 初始化 */
-async function init() {
-  $('autoScrollBtn').classList.add('active');
-
-  // 首次加载全部日志
-  try {
-    const r = await fetch('/api/logs');
-    logs = await r.json();
-    if (logs.length) {
-      lastTs = logs[logs.length - 1].ts;
-    }
-    renderLogs();
-  } catch {}
-
-  // 每 2 秒增量轮询
-  pollTimer = setInterval(pollLogs, 2000);
-}
-
-init();
-</script>
-{% endblock %}
+{% block page_script %}<script src="/static/log.js" defer></script>{% endblock %}

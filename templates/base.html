@@ -1,433 +1,122 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
   <title>{% block page_title %}dTools{% endblock %}</title>
+  <script>
+    (() => {
+      try {
+        const theme = localStorage.getItem('dt-theme') || 'dark';
+        const compact = localStorage.getItem('dt-nav-compact') === '1';
+        document.documentElement.dataset.theme = theme;
+        if (compact) document.documentElement.classList.add('nav-compact');
+      } catch (_) {}
+    })();
+  </script>
   <link rel="stylesheet" href="/static/common.css">
   {% block page_head %}{% endblock %}
-  <style>
-    /* 子页面可覆盖的变量块 */
-    {% block page_vars %}{% endblock %}
-  </style>
-  {% block page_style %}{% endblock %}
 </head>
-<body>
-<script>
-  // 立即应用侧边栏折叠状态，防止页面加载闪烁
-  (function(){
-    var c = localStorage.getItem('dt_sb_collapsed');
-    if (c === '1') document.documentElement.classList.add('sb-collapsed');
-  })();
-</script>
+<body data-page="{{ active_module }}">
+  <div class="app-shell">
+    <aside class="app-nav" id="appNav">
+      <div class="brand-row">
+        <a class="brand" href="/token" aria-label="dTools 首页">
+          <span class="brand-mark">d</span>
+          <span class="brand-copy"><strong>dTools</strong><small>LOCAL WORKBENCH</small></span>
+        </a>
+        <button class="icon-button nav-collapse" id="navCollapse" type="button" aria-label="收起导航">
+          <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+      </div>
 
-  <!-- ===== 侧边栏 ===== -->
-  <nav class="sidebar" id="sidebar">
-    <div class="sb-header">
-      <span class="sb-logo-text">dTools</span>
-      <button class="sb-theme-btn" id="sbThemeBtn" onclick="toggleTheme()" title="切换主题">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
-  </button>
-      <button class="sb-toggle" id="sbToggle" title="收起/展开">
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-  </button>
-    </div>
-    <div class="sb-search">
-      <input type="text" id="sbSearchInput" placeholder="搜索工具..." oninput="filterTools(this.value)">
-    </div>
-    <div class="sb-list" id="sbList"></div>
-    <div class="sb-footer">
-      <button class="sb-log-btn" id="logToggleBtn" onclick="toggleLogPanel()">
-        <span class="sb-log-dot"></span>
-        <span>日志</span>
-      </button>
-    </div>
-  </nav>
+      <div class="nav-section-label">工作台</div>
+      <nav class="nav-list" aria-label="主导航">
+        {% for module in modules %}
+          <a class="nav-item{% if module.name == active_module %} active{% endif %}" href="{{ module.route }}" title="{{ module.label }}">
+            <span class="nav-icon nav-icon-{{ module.icon }}">
+              {% if module.icon == 'spark' %}
+                <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>
+              {% elif module.icon == 'sync' %}
+                <svg viewBox="0 0 24 24"><path d="M20 7h-9M16 3l4 4-4 4M4 17h9M8 21l-4-4 4-4"/></svg>
+              {% else %}
+                <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg>
+              {% endif %}
+            </span>
+            <span class="nav-item-copy"><strong>{{ module.label }}</strong><small>{{ module.description }}</small></span>
+            <span class="nav-active-dot"></span>
+          </a>
+        {% endfor %}
+      </nav>
 
-  <!-- ===== 主内容 ===== -->
-  <div class="main-content" id="mainContent">
-    {% block content %}{% endblock %}
+      <div class="nav-spacer"></div>
+      <div class="local-card">
+        <span class="status-pulse"></span>
+        <div><strong>本地服务</strong><small>127.0.0.1:3456</small></div>
+      </div>
+      <div class="nav-actions">
+        <button class="nav-action" id="globalLogButton" type="button">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg>
+          <span>快速日志</span><kbd>L</kbd>
+        </button>
+        <button class="nav-action" id="themeButton" type="button">
+          <svg class="theme-moon" viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/></svg>
+          <svg class="theme-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <span>切换主题</span><kbd>T</kbd>
+        </button>
+      </div>
+    </aside>
+
+    <button class="nav-scrim" id="navScrim" type="button" aria-label="关闭导航"></button>
+
+    <section class="app-stage">
+      <header class="app-topbar">
+        <button class="icon-button mobile-menu" id="mobileMenu" type="button" aria-label="打开导航">
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="topbar-context">
+          <span class="context-eyebrow">DTOOLS / {{ active_module | upper }}</span>
+          <span class="context-title">{% block topbar_title %}工作台{% endblock %}</span>
+        </div>
+        <div class="topbar-spacer"></div>
+        <div class="topbar-clock" id="topbarClock"></div>
+        <div class="health-badge"><span></span>在线</div>
+      </header>
+
+      <main class="workspace">
+        {% block content %}{% endblock %}
+      </main>
+    </section>
   </div>
 
-  <!-- ===== 全局日志面板 ===== -->
-  <div class="log-panel" id="logPanel">
-    <div class="lp-header">
-      <h4>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-    日志</h4>
-      <input class="lp-search" id="lpSearch" placeholder="搜索日志..." oninput="lpRender()">
-      <div class="lp-levels">
-        <button class="lp-lvl on" data-l="info" onclick="lpToggleLevel(this)">信息</button>
-        <button class="lp-lvl on" data-l="ok" onclick="lpToggleLevel(this)">成功</button>
-        <button class="lp-lvl on" data-l="warn" onclick="lpToggleLevel(this)">警告</button>
-        <button class="lp-lvl on" data-l="err" onclick="lpToggleLevel(this)">错误</button>
+  <section class="log-drawer" id="logDrawer" aria-hidden="true">
+    <header class="drawer-header">
+      <div>
+        <span class="eyebrow">LIVE STREAM</span>
+        <h2>快速日志</h2>
       </div>
-      <div class="lp-actions">
-        <button class="lp-act on" id="lpAutoScroll" onclick="lpToggleAutoScroll()">自动滚动</button>
-        <button class="lp-act" onclick="lpCopy()">复制</button>
-        <button class="lp-act" onclick="lpClear()">清空</button>
-        <button class="lp-act" onclick="toggleLogPanel()" title="收起">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-  </button>
-        <button class="lp-act" id="lpExpandBtn" onclick="lpToggleExpand()" title="全展开/还原">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
-  </button>
+      <div class="drawer-actions">
+        <button class="text-button" id="drawerClear" type="button">清空</button>
+        <button class="icon-button" id="drawerClose" type="button" aria-label="关闭日志">
+          <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
       </div>
+    </header>
+    <div class="drawer-toolbar">
+      <input class="input" id="drawerSearch" type="search" placeholder="筛选日志内容">
+      <span class="drawer-count" id="drawerCount">0 条</span>
     </div>
-    <div class="lp-body" id="lpBody">
-      <div class="lp-empty">暂无日志</div>
-    </div>
-  </div>
+    <div class="drawer-log" id="drawerLog"><div class="empty-state compact">暂无日志</div></div>
+  </section>
+  <button class="drawer-scrim" id="drawerScrim" type="button" aria-label="关闭日志"></button>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
   <script>
-  /* ========================================
-     全局状态
-     ======================================== */
-  const SB_MODULES = {{ modules | rejectattr("name", "equalto", "log") | list | tojson }};
-  const ACTIVE_MODULE = '{{ active_module | default("") }}';
-  let sbPins = JSON.parse(localStorage.getItem('dt_sb_pins') || '[]');
-  let sbCollapsed = localStorage.getItem('dt_sb_collapsed') === '1';
-
-  /* ========================================
-     侧边栏逻辑
-     ======================================== */
-  function renderSidebar(filter) {
-    const f = (filter || '').toLowerCase();
-    const list = document.getElementById('sbList');
-    const pinned = SB_MODULES.filter(m => sbPins.includes(m.name));
-    const unpinned = SB_MODULES.filter(m => !sbPins.includes(m.name));
-    const matchPinned = f ? pinned.filter(m => (m.label || m.name).toLowerCase().includes(f)) : pinned;
-    const matchUnpinned = f ? unpinned.filter(m => (m.label || m.name).toLowerCase().includes(f)) : unpinned;
-    let html = '';
-    if (matchPinned.length) {
-      html += '<div class="sb-section-title">⭐ 常用</div>';
-      matchPinned.forEach(m => { html += sbToolHtml(m, true); });
-    }
-    if (matchUnpinned.length) {
-      html += '<div class="sb-section-title">全部工具</div>';
-      matchUnpinned.forEach(m => { html += sbToolHtml(m, false); });
-    }
-    if (!matchPinned.length && !matchUnpinned.length) {
-      html = '<div style="padding:16px 8px;color:var(--t3);font-size:12px">无匹配工具</div>';
-    }
-    list.innerHTML = html;
-  }
-
-  function sbToolHtml(m, pinned) {
-    const active = m.name === ACTIVE_MODULE ? ' active' : '';
-    const accent = m.accent || '#a855f7';
-    return `<a class="sb-tool${active}" href="/${m.name}" title="${m.label || m.name}">
-      <div class="sb-tool-icon" style="background:color-mix(in srgb,${accent} 15%,transparent);color:${accent}">${m.icon || '·'}</div>
-      <span class="sb-tool-label">${m.label || m.name}</span>
-      <button class="sb-pin-btn ${pinned ? 'pinned' : ''}" onclick="event.preventDefault();event.stopPropagation();togglePin('${m.name}')" title="${pinned ? '取消置顶' : '置顶'}">${pinned ? '★' : '☆'}</button>
-    </a>`;
-  }
-
-  function togglePin(name) {
-    const idx = sbPins.indexOf(name);
-    if (idx >= 0) sbPins.splice(idx, 1); else sbPins.push(name);
-    localStorage.setItem('dt_sb_pins', JSON.stringify(sbPins));
-    renderSidebar(document.getElementById('sbSearchInput').value);
-  }
-
-  function filterTools(val) { renderSidebar(val); }
-
-  function initSidebar() {
-    const sb = document.getElementById('sidebar');
-    if (sbCollapsed) {
-      sb.classList.add('collapsed');
-      document.documentElement.classList.add('sb-collapsed');
-    }
-    document.getElementById('sbToggle').addEventListener('click', () => {
-      sb.classList.toggle('collapsed');
-      const isCollapsed = sb.classList.contains('collapsed');
-      localStorage.setItem('dt_sb_collapsed', isCollapsed ? '1' : '0');
-      if (isCollapsed) {
-        document.documentElement.classList.add('sb-collapsed');
-      } else {
-        document.documentElement.classList.remove('sb-collapsed');
-      }
-    });
-    renderSidebar();
-  }
-
-  /* ========================================
-     日志面板逻辑
-     ======================================== */
-  let lpOpen = false;
-  let lpLogs = [];
-  let lpLastTs = 0;
-  let lpAutoScroll = true;
-  let lpActiveLevels = new Set(['info', 'ok', 'warn', 'err']);
-  let lpPollTimer = null;
-
-  function toggleLogPanel() {
-    lpOpen = !lpOpen;
-    document.getElementById('logPanel').classList.toggle('open', lpOpen);
-    document.getElementById('logToggleBtn').classList.toggle('active', lpOpen);
-    if (lpOpen && !lpPollTimer) {
-      lpLoadLogs();
-      lpPollTimer = setInterval(lpPoll, 2000);
-    } else if (!lpOpen && lpPollTimer) {
-      clearInterval(lpPollTimer);
-      lpPollTimer = null;
-    }
-  }
-
-  function lpToggleExpand() {
-    const panel = document.getElementById('logPanel');
-    const btn = document.getElementById('lpExpandBtn');
-    const isFull = panel.classList.toggle('fullscreen');
-    btn.title = isFull ? '收起' : '全展开';
-    btn.innerHTML = isFull
-      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3"/></svg>'
-      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>';
-  }
-
-  async function lpLoadLogs() {
-    try {
-      const r = await fetch('/api/logs');
-      lpLogs = await r.json();
-      if (lpLogs.length) lpLastTs = lpLogs[lpLogs.length - 1].ts;
-      lpRender();
-    } catch {}
-  }
-
-  async function lpPoll() {
-    if (!lpOpen) return;
-    try {
-      const r = await fetch('/api/logs/since?ts=' + lpLastTs);
-      const fresh = await r.json();
-      if (fresh.length) {
-        lpLogs.push(...fresh);
-        lpLastTs = fresh[fresh.length - 1].ts;
-        lpRender();
-      }
-    } catch {}
-  }
-
-  function lpToggleLevel(el) {
-    const l = el.dataset.l;
-    if (lpActiveLevels.has(l)) { lpActiveLevels.delete(l); el.classList.remove('on'); }
-    else { lpActiveLevels.add(l); el.classList.add('on'); }
-    lpRender();
-  }
-
-  function lpToggleAutoScroll() {
-    lpAutoScroll = !lpAutoScroll;
-    document.getElementById('lpAutoScroll').classList.toggle('on', lpAutoScroll);
-  }
-
-  function lpRender() {
-    const q = (document.getElementById('lpSearch').value || '').trim().toLowerCase();
-    const body = document.getElementById('lpBody');
-    const filtered = lpLogs.filter(e => {
-      if (!lpActiveLevels.has(e.level)) return false;
-      if (q) {
-        const text = (e.msg + ' ' + e.source).toLowerCase();
-        if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
-      }
-      return true;
-    });
-    if (!filtered.length) {
-      body.innerHTML = '<div class="lp-empty">' + (lpLogs.length ? '无匹配日志' : '暂无日志') + '</div>';
-      return;
-    }
-    body.innerHTML = filtered.map(e => {
-      const msg = q ? lpHighlight(lpEsc(e.msg), q) : lpSyntax(lpEsc(e.msg));
-      return `<div class="lp-entry">
-        <span class="lp-ts">${lpEsc(e.time)}</span>
-        <span class="lp-lvldot ${e.level}"></span>
-        <span class="lp-src">${lpEsc(e.source)}</span>
-        <span class="lp-msg">${msg}</span>
-      </div>`;
-    }).join('');
-    if (lpAutoScroll) body.scrollTop = body.scrollHeight;
-  }
-
-  function lpEsc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  /* 语法高亮：收集所有匹配区间，统一构建输出，避免 HTML 标签内匹配 */
-  function lpSyntax(text) {
-    // 收集所有高亮区间 (start, end, cssClass)
-    const ranges = [];
-    function addRange(match, offset, cls) {
-      ranges.push([offset, offset + match.length, cls]);
-    }
-    // 错误/成功/警告关键词
-    text.replace(/\b(error|exception|traceback|failed|failure|errno)\b/gi, (m, o) => { addRange(m, o, 'hl-err'); return m; });
-    text.replace(/\b(success|ok|done|completed|succeed)\b/gi, (m, o) => { addRange(m, o, 'hl-ok'); return m; });
-    text.replace(/\b(warning|warn|timeout|retry|deprecated)\b/gi, (m, o) => { addRange(m, o, 'hl-warn'); return m; });
-    // 布尔/空值
-    text.replace(/\b(true|false)\b/g, (m, o) => { addRange(m, o, 'hl-bool'); return m; });
-    text.replace(/\b(null|none|undefined|nan)\b/gi, (m, o) => { addRange(m, o, 'hl-null'); return m; });
-    // 数字（含小数、负数、科学计数）
-    text.replace(/(?<![.\w])(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, (m, o) => { addRange(m, o, 'hl-num'); return m; });
-    // 双引号字符串（已 HTML 转义为 &quot;...&quot;）
-    text.replace(/&quot;([^&]*?)&quot;/g, (m, o) => { addRange(m, o, 'hl-str'); return m; });
-    // 键名 (key: value 或 key=value)
-    text.replace(/(\w[\w]*)(?=\s*[:=])/g, (m, o) => { addRange(m, o, 'hl-key'); return m; });
-    // 路径 (Windows)
-    text.replace(/([A-Z]:\\[\w\\.\/ -]+)/g, (m, o) => { addRange(m, o, 'hl-path'); return m; });
-    // 路径 (Unix)
-    text.replace(/(\/[\w.\/ -]{3,})/g, (m, o) => { addRange(m, o, 'hl-path'); return m; });
-    // URL
-    text.replace(/(https?:\/\/[^\s<&]+)/g, (m, o) => { addRange(m, o, 'hl-url'); return m; });
-    // 排序并去重（保留不重叠区间，先到先得）
-    ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const merged = [];
-    ranges.forEach(r => {
-      if (!merged.length || r[0] >= merged[merged.length - 1][1]) {
-        merged.push(r);
-      }
-    });
-    // 单次遍历构建输出
-    let result = '', pos = 0;
-    merged.forEach(([s, e, cls]) => {
-      result += text.substring(pos, s) + '<span class="' + cls + '">' + text.substring(s, e) + '</span>';
-      pos = e;
-    });
-    result += text.substring(pos);
-    return result;
-  }
-
-  function lpHighlight(text, q) {
-    // 先做语法高亮，再叠加搜索高亮（跳过 HTML 标签）
-    let highlighted = lpSyntax(text);
-    const keywords = q.split(/\s+/).filter(Boolean);
-    keywords.forEach(kw => {
-      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp('(<[^>]*>)|(' + escaped + ')', 'gi');
-      highlighted = highlighted.replace(re, (match, tag, kwMatch) => {
-        return tag ? tag : '<mark>' + kwMatch + '</mark>';
-      });
-    });
-    return highlighted;
-  }
-
-  async function lpCopy() {
-    const q = (document.getElementById('lpSearch').value || '').trim().toLowerCase();
-    const filtered = lpLogs.filter(e => {
-      if (!lpActiveLevels.has(e.level)) return false;
-      if (q) {
-        const text = (e.msg + ' ' + e.source).toLowerCase();
-        if (!q.split(/\s+/).every(kw => text.includes(kw))) return false;
-      }
-      return true;
-    });
-    const text = filtered.map(e => `${e.time} [${e.level.toUpperCase()}] [${e.source}] ${e.msg}`).join('\n');
-    try {
-      await navigator.clipboard.writeText(text);
-      const btn = document.querySelector('.lp-actions .lp-act:nth-child(2)');
-      btn.textContent = '已复制 ✓';
-      setTimeout(() => { btn.textContent = '复制'; }, 1500);
-    } catch {
-      // fallback
-      const ta = document.createElement('textarea');
-      ta.value = text; document.body.appendChild(ta);
-      ta.select(); document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-  }
-
-  async function lpClear() {
-    try {
-      await fetch('/api/logs/clear', { method: 'POST' });
-      lpLogs = []; lpLastTs = 0; lpRender();
-    } catch {}
-  }
-
-  /* ========================================
-     主题切换（全局统一）
-     ======================================== */
-  function initTheme() {
-    try {
-      const saved = localStorage.getItem('dt-theme') || localStorage.getItem('csd-theme');
-      if (saved) {
-        document.documentElement.setAttribute('data-theme', saved);
-        localStorage.setItem('dt-theme', saved);
-      }
-    } catch {}
-  }
-
-  function toggleTheme() {
-    const cur = document.documentElement.getAttribute('data-theme');
-    const next = cur === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('dt-theme', next); } catch {}
-    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: next } }));
-  }
-
-  /* ========================================
-     弹窗工具
-     ======================================== */
-  function showModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.add('show');
-  }
-
-  function closeModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove('show');
-  }
-
-  /* ========================================
-     初始化
-     ======================================== */
-  document.addEventListener('DOMContentLoaded', () => {
-    initTheme();
-    initSidebar();
-  });
-
-
-  /* ========================================
-     共享工具函数
-     ======================================== */
-  /* HTML 转义（含引号，可用于属性值） */
-  function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  /* 搜索高亮：转义后对关键词加 <mark> 标签，合并重叠区间 */
-  function highlightText(text, query) {
-    const escaped = escHtml(text);
-    if (!query) return escaped;
-    const lower = escaped.toLowerCase();
-    const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!keywords.length) return escaped;
-    const ranges = [];
-    keywords.forEach(kw => {
-      let start = 0;
-      while (true) {
-        const idx = lower.indexOf(kw, start);
-        if (idx < 0) break;
-        ranges.push([idx, idx + kw.length]);
-        start = idx + 1;
-      }
-    });
-    if (!ranges.length) return escaped;
-    ranges.sort((a, b) => a[0] - b[0]);
-    const merged = [ranges[0]];
-    for (let i = 1; i < ranges.length; i++) {
-      const last = merged[merged.length - 1];
-      if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
-      else merged.push(ranges[i]);
-    }
-    let result = '', pos = 0;
-    merged.forEach(([s, e]) => {
-      result += escaped.substring(pos, s) + '<mark>' + escaped.substring(s, e) + '</mark>';
-      pos = e;
-    });
-    result += escaped.substring(pos);
-    return result;
-  }
-  /* 日志清除事件同步 */
-  window.addEventListener('logscleared', () => {
-    lpLogs = []; lpLastTs = 0; lpRender();
-  });
+    window.DTOOLS = {{ {'activeModule': active_module, 'modules': modules} | tojson }};
   </script>
+  <script src="/static/app.js" defer></script>
   {% block page_script %}{% endblock %}
 </body>
 </html>

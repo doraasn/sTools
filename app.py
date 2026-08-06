@@ -1,106 +1,77 @@
 """
-dTools — 开发工具集
-主入口：Flask 应用、模块加载器、控制台菜单
-@author y77h 2026-06-04
+dTools Flask 应用入口。
+
+负责应用初始化、控制器注册、统一响应头和本地控制台生命周期。
+
+@author Y77H
+@date 2026-08-06
 """
 
-import importlib
 import os
-import sys
+import signal
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
 
-# Windows 控制台 UTF-8 支持
-if sys.platform == 'win32':
-    os.system('chcp 65001 >nul 2>&1')
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+from flask import Flask, jsonify, redirect, request
 
-from flask import Flask, render_template, redirect
-
-PORT = 3456
-HOST = '127.0.0.1'
-VERSION = 'v2.0'
-
-# 确保 static 目录存在
-_static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-os.makedirs(_static_dir, exist_ok=True)
-
-app = Flask(__name__, static_folder='static', template_folder='templates')
-app.config['TEMPLATES_AUTO_RELOAD'] = True
-MODULES = []
-MODULE_PRIORITY = ['token', 'sync', 'log']
+from constant.app_constant import APP_NAME, APP_VERSION, HOST, MODULES, PORT
+from controller import BLUEPRINTS
 
 
-def load_modules():
-    """扫描 modules/ 目录，按优先级加载实现了 register(app) 的模块"""
-    modules_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'modules')
-    if not os.path.isdir(modules_dir):
-        return
+def create_app():
+    """创建 Flask 应用。@return 例如：Flask('app')。"""
+    application = Flask(__name__, static_folder='static', template_folder='templates')
+    application.config.update(
+        TEMPLATES_AUTO_RELOAD=True,
+        MODULES=MODULES,
+        JSON_AS_ASCII=False,
+    )
+    for blueprint in BLUEPRINTS:
+        application.register_blueprint(blueprint)
 
-    # 收集所有可用模块名
-    available = []
-    for fname in os.listdir(modules_dir):
-        if not fname.endswith('.py') or fname in ('__init__.py', 'common.py'):
-            continue
-        available.append(fname[:-3])
+    @application.get('/')
+    def home():
+        """进入默认工作台。@return 例如：302 /token。"""
+        return redirect('/token')
 
-    # 按优先级排序：先在 MODULE_PRIORITY 中的按序排列，其余按字母序排到末尾
-    def sort_key(name):
-        try:
-            return (0, MODULE_PRIORITY.index(name), '')
-        except ValueError:
-            return (1, 0, name)
+    @application.get('/api/health')
+    def health():
+        """返回本地服务状态。@return 例如：{'status': 'ok', 'version': 'v3.0'}。"""
+        return jsonify({
+            'status': 'ok',
+            'name': APP_NAME,
+            'version': APP_VERSION,
+            'modules': [module['name'] for module in MODULES],
+        })
 
-    available.sort(key=sort_key)
+    @application.after_request
+    def add_local_headers(response):
+        """添加适合本地工具的基础安全响应头。@return 例如：Response。"""
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault('Referrer-Policy', 'no-referrer')
+        if request.path.startswith('/api/') and 'Cache-Control' not in response.headers:
+            response.headers['Cache-Control'] = 'no-store'
+        return response
 
-    for mod_name in available:
-        try:
-            mod = importlib.import_module(f'modules.{mod_name}')
-            if hasattr(mod, 'register') and hasattr(mod, 'MODULE_INFO'):
-                mod.register(app)
-                MODULES.append(mod.MODULE_INFO)
-                app.config['MODULES'] = MODULES  # 供模板渲染侧边栏
-                print(f'  ✓ 已加载模块: {mod.MODULE_INFO.get("label", mod_name)}')
-        except Exception as e:
-            print(f'  ✗ 加载模块 {mod_name} 失败: {e}')
+    @application.errorhandler(404)
+    def not_found(_error):
+        """处理不存在的接口。@return 例如：{'error': '接口不存在'}。"""
+        if request.path.startswith('/api/'):
+            return jsonify({'error': '接口不存在'}), 404
+        return redirect('/token')
+
+    return application
 
 
-@app.route('/')
-def home():
-    """重定向到 Token 看板"""
-    return redirect('/token')
-
-
-def show_banner():
-    """显示控制台 banner"""
-    W = 30  # 内部宽度
-
-    def pad_line(text):
-        """根据可视宽度补空格（CJK 占 2 列）"""
-        cn = sum(1 for c in text if '一' <= c <= '鿿')
-        visual = len(text) + cn
-        return text + ' ' * max(0, W - visual)
-
-    names = ', '.join(m.get('label', m.get('name', '?')) for m in MODULES)
-    url = f'http://{HOST}:{PORT}'
-
-    print()
-    print(f'  +{"-" * (W + 2)}+')
-    print(f'  |  {pad_line(f"dTools  {VERSION}")}  |')
-    print(f'  |  {pad_line(names)}  |')
-    print(f'  |  {" " * W}  |')
-    print(f'  |  {pad_line("-> " + url)}  |')
-    print(f'  |  {" " * W}  |')
-    print(f'  |  {pad_line("[O]浏览器  [Q]退出")}  |')
-    print(f'  +{"-" * (W + 2)}+')
-    print()
+app = create_app()
 
 
 def open_browser():
-    """打开默认浏览器"""
+    """打开本地工作台。@return 例如：None。"""
     url = f'http://{HOST}:{PORT}'
     try:
         webbrowser.open(url)
@@ -111,43 +82,46 @@ def open_browser():
             pass
 
 
+def stop_process():
+    """结束当前本地服务进程。@return 例如：None。"""
+    try:
+        os.kill(os.getpid(), signal.SIGTERM)
+    except Exception:
+        os._exit(0)
+
+
 def console_loop():
-    """控制台按键监听"""
+    """监听 O 打开浏览器、Q 停止服务。@return 例如：None。"""
     try:
         import msvcrt
-        while True:
-            if msvcrt.kbhit():
-                ch = msvcrt.getwch().lower()
-                if ch == 'q':
-                    print('\n  再见！')
-                    sys.exit(0)
-                elif ch == 'o':
-                    open_browser()
-            time.sleep(0.05)
     except ImportError:
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print('\n  再见！')
+        return
+    while True:
+        if msvcrt.kbhit():
+            key = msvcrt.getwch().lower()
+            if key == 'q':
+                stop_process()
+                return
+            if key == 'o':
+                open_browser()
+        time.sleep(0.05)
+
+
+def show_banner():
+    """显示启动信息。@return 例如：None。"""
+    url = f'http://{HOST}:{PORT}'
+    labels = ' · '.join(module['label'] for module in MODULES)
+    print(f'\n  {APP_NAME} {APP_VERSION}')
+    print(f'  {labels}')
+    print(f'  {url}')
+    print('  [O] 打开浏览器  [Q] 停止\n')
 
 
 if __name__ == '__main__':
-    print('\n  dTools 启动中...\n')
-    load_modules()
-
-    if not MODULES:
-        print('  ⚠ 未找到任何模块')
-
-    # 控制台按键监听
-    threading.Thread(target=console_loop, daemon=True).start()
-
+    if sys.platform == 'win32':
+        os.system('chcp 65001 >nul 2>&1')
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     show_banner()
-
-    try:
-        app.run(host=HOST, port=PORT, debug=False, use_reloader=False)
-    except OSError as e:
-        if 'Address already in use' in str(e) or '10048' in str(e):
-            print(f'  ✗ 端口 {PORT} 已被占用，请关闭占用进程后重试')
-        else:
-            print(f'  ✗ 启动失败: {e}')
+    threading.Thread(target=console_loop, name='dtools-console', daemon=True).start()
+    app.run(host=HOST, port=PORT, debug=False, use_reloader=False, threaded=True)
