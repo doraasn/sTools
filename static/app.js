@@ -93,15 +93,6 @@
     window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: next } }));
   });
 
-  const clock = $('topbarClock');
-  const updateClock = () => {
-    if (!clock) return;
-    const now = new Date();
-    clock.textContent = `${now.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', weekday: 'short' })}  ${now.toLocaleTimeString('zh-CN', { hour12: false })}`;
-  };
-  updateClock();
-  setInterval(updateClock, 1000);
-
   let drawerOpen = false;
   let drawerLogs = [];
   let drawerLastTimestamp = 0;
@@ -181,4 +172,3 @@
     }
   });
 })();
-

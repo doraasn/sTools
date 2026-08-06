@@ -40,7 +40,6 @@
     try {
       logs = await api('/api/logs');
       if (logs.length) lastTimestamp = logs[logs.length - 1].ts;
-      $('logLastUpdate').textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
       render();
     } catch (error) { toast('日志加载失败', error.message, 'error'); }
   }
@@ -51,7 +50,6 @@
       if (fresh.length) {
         logs.push(...fresh);
         lastTimestamp = fresh[fresh.length - 1].ts;
-        $('logLastUpdate').textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
         render();
       }
     } catch (_) {}
@@ -86,4 +84,3 @@
   loadInitial();
   setInterval(() => { if (!document.hidden) poll(); }, 2000);
 })();
-

@@ -84,15 +84,15 @@
 }
 
 /* 同步页提升表格、表单与运行控制台的可读性。 */
-.command-label, .command-status { font-size: 11px; }
-.command-select { font-size: 12px; }
-.connection-header h2 { font-size: 16px; }
-.connection-state { font-size: 11px; }
-.table-search input { font-size: 12px; }
-.sync-table { font-size: 12px; }
-.sync-table th { font-size: 10px; }
-.table-name { font-size: 12px; }
-.table-control { font-size: 11px; }
-.console-placeholder p { font-size: 12px; }
-.console-line { font-size: 11px; }
-.run-selection span { font-size: 10px; }
+.command-label, .command-status { font-size: 13px; }
+.command-select { font-size: 14px; }
+.connection-header h2 { font-size: 18px; }
+.connection-state { font-size: 13px; }
+.table-search input { font-size: 14px; }
+.sync-table { font-size: 14px; }
+.sync-table th { font-size: 12px; }
+.table-name { font-size: 14px; }
+.table-control { font-size: 13px; }
+.console-placeholder p { font-size: 14px; }
+.console-line { font-size: 13px; }
+.run-selection span { font-size: 12px; }

@@ -24,14 +24,13 @@
       <div class="brand-row">
         <a class="brand" href="/token" aria-label="dTools 首页">
           <span class="brand-mark">d</span>
-          <span class="brand-copy"><strong>dTools</strong><small>LOCAL WORKBENCH</small></span>
+          <span class="brand-copy"><strong>dTools</strong></span>
         </a>
         <button class="icon-button nav-collapse" id="navCollapse" type="button" aria-label="收起导航">
           <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
         </button>
       </div>
 
-      <div class="nav-section-label">工作台</div>
       <nav class="nav-list" aria-label="主导航">
         {% for module in modules %}
           <a class="nav-item{% if module.name == active_module %} active{% endif %}" href="{{ module.route }}" title="{{ module.label }}">
@@ -44,17 +43,13 @@
                 <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg>
               {% endif %}
             </span>
-            <span class="nav-item-copy"><strong>{{ module.label }}</strong><small>{{ module.description }}</small></span>
+            <span class="nav-item-copy"><strong>{{ module.label }}</strong></span>
             <span class="nav-active-dot"></span>
           </a>
         {% endfor %}
       </nav>
 
       <div class="nav-spacer"></div>
-      <div class="local-card">
-        <span class="status-pulse"></span>
-        <div><strong>本地服务</strong><small>127.0.0.1:3456</small></div>
-      </div>
       <div class="nav-actions">
         <button class="nav-action" id="globalLogButton" type="button">
           <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9l3 3-3 3M13 15h4"/></svg>
@@ -76,12 +71,9 @@
           <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
         <div class="topbar-context">
-          <span class="context-eyebrow">DTOOLS / {{ active_module | upper }}</span>
           <span class="context-title">{% block topbar_title %}工作台{% endblock %}</span>
         </div>
         <div class="topbar-spacer"></div>
-        <div class="topbar-clock" id="topbarClock"></div>
-        <div class="health-badge"><span></span>在线</div>
       </header>
 
       <main class="workspace">
@@ -93,7 +85,6 @@
   <section class="log-drawer" id="logDrawer" aria-hidden="true">
     <header class="drawer-header">
       <div>
-        <span class="eyebrow">LIVE STREAM</span>
         <h2>快速日志</h2>
       </div>
       <div class="drawer-actions">

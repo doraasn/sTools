@@ -27,6 +27,14 @@
     };
   };
 
+  const solidTone = (hex, amount) => {
+    const value = Number.parseInt(hex.slice(1), 16);
+    const target = amount < 0 ? 0 : 255;
+    const weight = Math.abs(amount);
+    const channel = (shift) => Math.round(((value >> shift) & 255) * (1 - weight) + target * weight);
+    return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
+  };
+
   const loadLocalSettings = () => {
     try {
       aliases = JSON.parse(localStorage.getItem('dt-token-aliases') || '{}');
@@ -159,8 +167,8 @@
       const values = dates.map((date) => map.get(`${date}\0${model.name}`) || {});
       datasets.push(
         { label: `${model.name} · 输入`, data: values.map((v) => (v.input || 0) + (v.cacheCreate || 0)), backgroundColor: color, stack: 'tokens' },
-        { label: `${model.name} · 缓存`, data: values.map((v) => v.cacheRead || 0), backgroundColor: color + '72', stack: 'tokens' },
-        { label: `${model.name} · 输出`, data: values.map((v) => v.output || 0), backgroundColor: color + 'b5', stack: 'tokens' },
+        { label: `${model.name} · 缓存`, data: values.map((v) => v.cacheRead || 0), backgroundColor: solidTone(color, .2), stack: 'tokens' },
+        { label: `${model.name} · 输出`, data: values.map((v) => v.output || 0), backgroundColor: solidTone(color, .38), stack: 'tokens' },
       );
     });
     const colors = themeColors();
@@ -237,15 +245,16 @@
           },
         },
         scales: {
-          x: { stacked: true, grid: { display: false }, ticks: { color: colors.text3, maxRotation: 0, font: { size: 11 } }, border: { display: false } },
-          y: { stacked: true, beginAtZero: true, grace: '12%', grid: { color: colors.line + '80' }, ticks: { color: colors.text3, callback: formatNumber, font: { size: 11 } }, border: { display: false } },
+          x: { stacked: true, grid: { display: false }, ticks: { color: colors.text2, maxRotation: 0, font: { size: 13, weight: 500 } }, border: { display: false } },
+          y: { stacked: true, beginAtZero: true, grace: '12%', grid: { color: colors.line }, ticks: { color: colors.text2, callback: formatNumber, font: { size: 13, weight: 500 } }, border: { display: false } },
         },
       },
       plugins: [{
         id: 'totalLabels',
         afterDatasetsDraw(chart) {
+          if (dates.length > 16) return;
           const { ctx } = chart;
-          ctx.save(); ctx.fillStyle = colors.text3; ctx.font = '11px ui-monospace'; ctx.textAlign = 'center';
+          ctx.save(); ctx.fillStyle = colors.text2; ctx.font = '12px ui-monospace'; ctx.textAlign = 'center';
           dates.forEach((_, index) => {
             const total = chart.data.datasets.reduce((sum, dataset) => sum + (dataset.data[index] || 0), 0);
             const elements = chart.getDatasetMeta(chart.data.datasets.length - 1).data;
