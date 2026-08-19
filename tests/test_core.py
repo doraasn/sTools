@@ -15,6 +15,7 @@ from unittest.mock import patch
 from app import app
 from service.token_service import (
     TOOL_ORDER,
+    TokenService,
     _parse_claude_file,
     _parse_codex_file,
     _parse_trae_file,
@@ -67,7 +68,7 @@ class ApplicationTest(unittest.TestCase):
             response = self.client.get('/api/tokens?tool=all')
         self.assertEqual(200, response.status_code)
         self.assertEqual(123, response.get_json()['summary']['grandTotal'])
-        mocked.assert_called_once_with('all', True)
+        mocked.assert_called_once_with('all', True, False)
 
 
 class TokenServiceTest(unittest.TestCase):
@@ -171,6 +172,80 @@ class TokenServiceTest(unittest.TestCase):
         self.assertEqual('Trae CN', records[0]['model'])
         self.assertEqual(50, records[0]['output'])
         self.assertEqual(150, records[0]['total'])
+
+    def test_display_settings_keep_unrelated_parse_cache(self):
+        """
+        工具显隐和别名变化不能清空文件解析缓存。
+
+        @return 例如：None
+        @author Y77H
+        @date 2026-08-06
+        """
+        service = TokenService()
+        service._file_cache = {
+            'trae.log': {'kind': 'trae:trae-intl', 'signature': (1, 1), 'records': []},
+            'codex.jsonl': {'kind': 'codex', 'signature': (1, 1), 'records': []},
+        }
+        previous = {'trae-intl': 'D:/Trae', 'aliases': {}}
+        updated = {'trae-intl': 'D:/Trae', 'aliases': {'demo': '演示'}, 'hiddenTools': ['claude']}
+        with patch.object(service, 'get_settings', return_value=previous), \
+                patch('service.token_service.json_store.save_config'):
+            service.save_settings(updated)
+        self.assertEqual({'trae.log', 'codex.jsonl'}, set(service._file_cache))
+
+    def test_trae_path_change_only_invalidates_matching_cache(self):
+        """
+        Trae 路径变化只清理对应工具缓存。
+
+        @return 例如：None
+        @author Y77H
+        @date 2026-08-06
+        """
+        service = TokenService()
+        service._file_cache = {
+            'intl.log': {'kind': 'trae:trae-intl', 'signature': (1, 1), 'records': []},
+            'cn.log': {'kind': 'trae:trae-cn', 'signature': (1, 1), 'records': []},
+            'codex.jsonl': {'kind': 'codex', 'signature': (1, 1), 'records': []},
+        }
+        with patch.object(service, 'get_settings', return_value={'trae-intl': 'D:/old'}), \
+                patch.object(service, '_remove_persistent_cache'), \
+                patch('service.token_service.json_store.save_config'):
+            service.save_settings({'trae-intl': 'D:/new', 'hiddenTools': []})
+        self.assertEqual({'cn.log', 'codex.jsonl'}, set(service._file_cache))
+
+    def test_trae_persistent_cache_survives_service_restart(self):
+        """
+        Trae 解析结果可跨服务实例复用。
+
+        @return 例如：None
+        @author Y77H
+        @date 2026-08-06
+        """
+        line = (
+            '2026-08-06T10:00:00.000000+08:00 INFO token usage: TokenUsageEvent { '
+            'name: "", prompt_tokens: 100, completion_tokens: 20, total_tokens: 120, '
+            'reasoning_tokens: Some(0), cache_creation_input_tokens: Some(0), '
+            'cache_read_input_tokens: Some(0) }'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            source_dir = os.path.join(directory, 'logs')
+            cache_dir = os.path.join(directory, 'temp')
+            os.makedirs(source_dir)
+            path = os.path.join(source_dir, 'ai-agent_0_stdout.log')
+            with open(path, 'w', encoding='utf-8') as file:
+                file.write(line + '\n')
+            config = {'dirs': [source_dir], 'type': 'trae_log', 'label': 'Trae'}
+            with patch('service.token_service.TEMP_DIR', cache_dir):
+                first = TokenService()
+                with patch.object(first, 'get_settings', return_value={}):
+                    records = first._load_trae_records('trae-intl', config)
+                self.assertEqual(1, len(records))
+
+                second = TokenService()
+                with patch.object(second, 'get_settings', return_value={}), \
+                        patch('service.token_service._parse_trae_file', side_effect=AssertionError('不应重复解析')):
+                    cached_records = second._load_trae_records('trae-intl', config)
+                self.assertEqual(records, cached_records)
 
 
 class SyncTaskTest(unittest.TestCase):

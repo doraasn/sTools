@@ -1,4 +1,8 @@
 .token-page-head { margin-bottom: 22px; }
+.token-page-head .page-head-actions { align-items: center; }
+.token-page-head .button, #toolSwitch { height: 42px; min-height: 42px; }
+#toolSwitch { padding: 3px; }
+#toolSwitch .segment { height: 34px; min-height: 34px; }
 .token-toolbar { display: flex; align-items: center; gap: 12px; min-height: 54px; margin-bottom: 14px; padding: 8px 12px; border-radius: 13px; }
 .period-group { display: flex; gap: 3px; }
 .period { height: 34px; padding: 0 11px; color: var(--text-2); background: transparent; border: 0; border-radius: 7px; font-size: 14px; font-weight: 650; }
@@ -51,12 +55,12 @@
 .donut-center { position: absolute; inset: 0; display: grid; place-content: center; pointer-events: none; text-align: center; }
 .donut-center strong { font-size: 23px; line-height: 1; letter-spacing: -.8px; }
 .donut-center span { margin-top: 5px; color: var(--text-2); font-size: 12px; letter-spacing: .6px; }
-.rank-list { display: grid; align-content: start; gap: 8px; min-width: 0; max-height: 280px; overflow: auto; padding: 2px 4px 2px 0; }
+.rank-list { display: grid; align-content: start; gap: 8px; min-width: 0; max-height: 280px; overflow: auto; padding: 6px 4px 4px 0; }
 .rank-row { display: grid; grid-template-columns: 9px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 6px 7px; border-radius: 7px; }
 .rank-row:hover { background: var(--surface-2); }
 .rank-color { width: 7px; height: 7px; border-radius: 2px; }
 .rank-copy { min-width: 0; }
-.rank-copy strong { display: -webkit-box; overflow: hidden; font-size: 14px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.rank-copy strong { display: -webkit-box; overflow: hidden; padding-top: 1px; font-size: 14px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .rank-copy small { display: block; margin-top: 2px; color: var(--text-2); font-size: 12px; }
 .rank-value { text-align: right; }
 .rank-value strong { display: block; font: 13px/1.3 ui-monospace, monospace; }

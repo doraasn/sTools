@@ -27,14 +27,6 @@
     };
   };
 
-  const solidTone = (hex, amount) => {
-    const value = Number.parseInt(hex.slice(1), 16);
-    const target = amount < 0 ? 0 : 255;
-    const weight = Math.abs(amount);
-    const channel = (shift) => Math.round(((value >> shift) & 255) * (1 - weight) + target * weight);
-    return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
-  };
-
   const loadLocalSettings = () => {
     try {
       aliases = JSON.parse(localStorage.getItem('dt-token-aliases') || '{}');
@@ -157,20 +149,29 @@
     const map = new Map();
     view.cells.forEach((cell) => {
       const key = `${cell.date}\0${cell.model}`;
-      const bucket = map.get(key) || { input: 0, cacheRead: 0, cacheCreate: 0, output: 0 };
-      ['input', 'cacheRead', 'cacheCreate', 'output'].forEach((name) => { bucket[name] += cell[name] || 0; });
+      const bucket = map.get(key) || { total: 0 };
+      bucket.total += cell.total || 0;
       map.set(key, bucket);
     });
-    const datasets = [];
-    visibleModels.forEach((model) => {
-      const color = COLORS[view.models.indexOf(model) % COLORS.length];
-      const values = dates.map((date) => map.get(`${date}\0${model.name}`) || {});
-      datasets.push(
-        { label: `${model.name} · 输入`, data: values.map((v) => (v.input || 0) + (v.cacheCreate || 0)), backgroundColor: color, stack: 'tokens' },
-        { label: `${model.name} · 缓存`, data: values.map((v) => v.cacheRead || 0), backgroundColor: solidTone(color, .2), stack: 'tokens' },
-        { label: `${model.name} · 输出`, data: values.map((v) => v.output || 0), backgroundColor: solidTone(color, .38), stack: 'tokens' },
-      );
-    });
+    const colorByModel = new Map(view.models.map((model, index) => [model.name, COLORS[index % COLORS.length]]));
+    const rankedByDate = dates.map((date) => visibleModels
+      .map((model) => ({
+        name: model.name,
+        total: map.get(`${date}\0${model.name}`)?.total || 0,
+        color: colorByModel.get(model.name),
+      }))
+      .filter((item) => item.total > 0)
+      .sort((left, right) => right.total - left.total || left.name.localeCompare(right.name)));
+    const slotCount = Math.max(0, ...rankedByDate.map((items) => items.length));
+
+    // 数据集代表“当天排名槽位”而不是固定模型：排名第一的模型始终作为柱体最底层。
+    const datasets = Array.from({ length: slotCount }, (_, rank) => ({
+      label: `第 ${rank + 1} 名`,
+      data: rankedByDate.map((items) => items[rank]?.total || 0),
+      backgroundColor: rankedByDate.map((items) => items[rank]?.color || 'transparent'),
+      borderWidth: 0,
+      stack: 'tokens',
+    }));
     const colors = themeColors();
     charts.daily = new Chart($('dailyChart'), {
       type: 'bar',
@@ -193,11 +194,7 @@
               }
 
               // 按当日用量从小到大排列，最高用量始终位于提示框最底部。
-              const entries = visibleModels.map((model) => {
-                const item = map.get(`${dates[dataIndex]}\0${model.name}`) || {};
-                const total = (item.input || 0) + (item.cacheCreate || 0) + (item.cacheRead || 0) + (item.output || 0);
-                return { name: model.name, total, color: COLORS[view.models.indexOf(model) % COLORS.length] };
-              }).filter((item) => item.total > 0)
+              const entries = rankedByDate[dataIndex].map((item) => ({ ...item }))
                 .sort((left, right) => left.total - right.total || left.name.localeCompare(right.name));
               const dayTotal = entries.reduce((sum, item) => sum + item.total, 0);
               tooltipElement.innerHTML = `
@@ -257,8 +254,10 @@
           ctx.save(); ctx.fillStyle = colors.text2; ctx.font = '12px ui-monospace'; ctx.textAlign = 'center';
           dates.forEach((_, index) => {
             const total = chart.data.datasets.reduce((sum, dataset) => sum + (dataset.data[index] || 0), 0);
-            const elements = chart.getDatasetMeta(chart.data.datasets.length - 1).data;
-            const element = elements[index];
+            const topDatasetIndex = chart.data.datasets.reduce((result, dataset, datasetIndex) => (
+              dataset.data[index] > 0 ? datasetIndex : result
+            ), -1);
+            const element = topDatasetIndex >= 0 ? chart.getDatasetMeta(topDatasetIndex).data[index] : null;
             if (element && total) ctx.fillText(formatNumber(total), element.x, Math.max(element.y - 7, chart.chartArea.top + 9));
           });
           ctx.restore();
@@ -311,13 +310,14 @@
     $('projectList').closest('.distribution-panel').style.display = '';
   }
 
-  async function loadData(showLoading = true) {
+  async function loadData(showLoading = true, forceRefresh = false) {
     if (loading || !currentTool) return;
     loading = true;
     if (showLoading) $('tokenLoading').classList.add('show');
     $('tokenRefresh').disabled = true;
     try {
-      rawData = await api(`/api/tokens?tool=${encodeURIComponent(currentTool)}`);
+      const refreshQuery = forceRefresh ? '&refresh=1' : '';
+      rawData = await api(`/api/tokens?tool=${encodeURIComponent(currentTool)}${refreshQuery}`);
       data = rawData;
       renderAll();
       $('tokenUpdated').textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
@@ -393,12 +393,16 @@
     hiddenModels.has(model.name) ? hiddenModels.delete(model.name) : hiddenModels.add(model.name);
     renderDaily(view);
   });
-  $('tokenRefresh').addEventListener('click', () => loadData(false));
+  $('tokenRefresh').addEventListener('click', () => loadData(false, true));
   $('tokenSettings').addEventListener('click', () => {
     openModal('tokenSettingsModal');
     renderSettings().catch((error) => { $('tokenSettingsBody').innerHTML = `<div class="empty-state compact">${escapeHTML(error.message)}</div>`; });
   });
   $('tokenSettingsSave').addEventListener('click', async () => {
+    const saveButton = $('tokenSettingsSave');
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
+    saveButton.textContent = '保存中…';
     settings.hiddenTools = catalogTools
       .filter((tool) => !document.querySelector(`[data-tool-visible="${tool.name}"]`)?.checked)
       .map((tool) => tool.name);
@@ -416,14 +420,17 @@
     try {
       await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
       saveLocalSettings();
+      closeModal('tokenSettingsModal');
+      toast('设置已保存', '正在刷新受影响的数据', 'success');
       await loadTools();
       if (currentTool) await loadData(false);
     } catch (error) {
       toast('设置保存失败', error.message, 'error');
       return;
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = '保存设置';
     }
-    closeModal('tokenSettingsModal');
-    toast('设置已保存', '', 'success');
   });
   window.addEventListener('themechange', renderAll);
 
@@ -443,6 +450,6 @@
     }
     if (currentTool) await loadData();
     else $('tokenLoading').classList.remove('show');
-    setInterval(() => { if (!document.hidden) loadData(false); }, 20000);
+    setInterval(() => { if (!document.hidden) loadData(false, true); }, 60000);
   })();
 })();

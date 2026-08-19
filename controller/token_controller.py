@@ -30,7 +30,8 @@ def get_tokens():
         return jsonify({'error': f'未知工具: {tool}'}), 400
     try:
         apply_settings = request.args.get('raw') != '1'
-        return jsonify(token_service.get_report(tool, apply_settings))
+        force_refresh = request.args.get('refresh') == '1'
+        return jsonify(token_service.get_report(tool, apply_settings, force_refresh))
     except Exception as error:
         log_service.add(log_service.ERR, 'token', f'Token 数据加载失败: {error}')
         return jsonify({'error': str(error)}), 500

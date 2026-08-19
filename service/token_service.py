@@ -11,11 +11,14 @@ import json
 import os
 import re
 import sqlite3
+import tempfile
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from service import log_service
+from constant.app_constant import TEMP_DIR
 from util import json_store
 
 
@@ -56,6 +59,7 @@ TOOL_CONFIGS = {
     },
 }
 TOOL_ORDER = tuple(TOOL_CONFIGS)
+RECORD_CACHE_SECONDS = 120
 
 _clean_model_re = re.compile(r'<[^>]*>')
 _short_prefix_re = re.compile(r'^[a-zA-Z]--')
@@ -86,6 +90,9 @@ class TokenService:
     def __init__(self):
         self._file_cache = {}
         self._database_cache = {}
+        self._record_cache = {}
+        self._persistent_loaded = set()
+        self._persistent_dirty = set()
         self._lock = threading.RLock()
 
     def get_settings(self):
@@ -94,10 +101,15 @@ class TokenService:
 
     def save_settings(self, data):
         """保存 Token 设置。@param data 例如：{'hiddenTools': ['trae-cn']}。@return 例如：None。"""
+        previous = self.get_settings()
         hidden_tools = data.get('hiddenTools', [])
         data['hiddenTools'] = [name for name in hidden_tools if name in TOOL_CONFIGS]
         json_store.save_config('token', data)
-        self.invalidate()
+
+        # 工具显隐、项目别名等展示设置不影响原始日志，只在 Trae 路径变化时清理对应缓存。
+        for tool in ('trae-intl', 'trae-cn'):
+            if str(previous.get(tool, '')).strip() != str(data.get(tool, '')).strip():
+                self.invalidate(f'trae:{tool}')
 
     def get_tool_catalog(self):
         """返回全部工具的发现与显示状态。@return 例如：[{'name': 'codex', 'hasData': True}]。"""
@@ -106,6 +118,8 @@ class TokenService:
         def inspect(name):
             config = TOOL_CONFIGS[name]
             try:
+                # 工具目录只需要判断“是否有数据”，不应为每个来源生成完整报表。
+                # 完整解析延迟到用户选中工具或“全部”后，避免首屏等待大型日志全部读完。
                 has_data = self._has_tool_data(name, config)
             except Exception as error:
                 has_data = False
@@ -158,9 +172,13 @@ class TokenService:
         """清理文件缓存。@param kind 例如：trae。@return 例如：12。"""
         with self._lock:
             if not kind:
-                count = len(self._file_cache) + len(self._database_cache)
+                count = len(self._file_cache) + len(self._database_cache) + len(self._record_cache)
                 self._file_cache.clear()
                 self._database_cache.clear()
+                self._record_cache.clear()
+                self._persistent_loaded.clear()
+                self._persistent_dirty.clear()
+                self._remove_persistent_cache()
                 return count
             keys = [path for path, item in self._file_cache.items() if item.get('kind') == kind]
             for path in keys:
@@ -168,9 +186,14 @@ class TokenService:
             database_keys = [name for name in self._database_cache if name == kind]
             for name in database_keys:
                 self._database_cache.pop(name, None)
+            if kind.startswith('trae:'):
+                self._record_cache.pop(kind.split(':', 1)[1], None)
+                self._persistent_loaded.add(kind)
+                self._persistent_dirty.discard(kind)
+                self._remove_persistent_cache(kind)
             return len(keys) + len(database_keys)
 
-    def get_report(self, tool, apply_settings=True):
+    def get_report(self, tool, apply_settings=True, force_refresh=False):
         """
         获取指定工具的聚合报告。
 
@@ -178,29 +201,36 @@ class TokenService:
         @return 例如：{'summary': {'grandTotal': 100}, 'cells': []}
         """
         if tool == 'all':
-            return self._get_all_report()
-        return aggregate_report(self._load_records(tool, apply_settings))
+            return self._get_all_report(force_refresh)
+        return aggregate_report(self._load_records(tool, apply_settings, force_refresh))
 
-    def _load_records(self, tool, apply_settings=True):
+    def _load_records(self, tool, apply_settings=True, force_refresh=False):
         """加载单个工具的原始记录。@param tool 例如：codex。@return 例如：[{'total': 100}]。"""
         config = TOOL_CONFIGS.get(tool)
         if not config:
             raise ValueError(f'未知工具: {tool}')
-        if config['type'] == 'jsonl':
-            records = self._load_claude_records(config)
-        elif config['type'] == 'trae_log':
-            records = self._load_trae_records(tool, config)
-        elif config['type'] == 'usage_db':
-            records = self._load_usage_database_records(tool, config)
-        elif config['type'] == 'codex_jsonl':
-            records = self._load_codex_records(config)
-        else:
-            raise ValueError(f"不支持的数据源类型: {config['type']}")
+        with self._lock:
+            cached = self._record_cache.get(tool)
+            cache_valid = cached and time.monotonic() - cached['loaded_at'] < RECORD_CACHE_SECONDS
+            records = cached['records'] if cache_valid and not force_refresh else None
+        if records is None:
+            if config['type'] == 'jsonl':
+                records = self._load_claude_records(config)
+            elif config['type'] == 'trae_log':
+                records = self._load_trae_records(tool, config)
+            elif config['type'] == 'usage_db':
+                records = self._load_usage_database_records(tool, config, force_refresh)
+            elif config['type'] == 'codex_jsonl':
+                records = self._load_codex_records(config)
+            else:
+                raise ValueError(f"不支持的数据源类型: {config['type']}")
+            with self._lock:
+                self._record_cache[tool] = {'loaded_at': time.monotonic(), 'records': records}
         if tool == 'claude' and apply_settings:
             records = self._apply_claude_settings(records)
         return records
 
-    def _get_all_report(self):
+    def _get_all_report(self, force_refresh=False):
         """并行聚合全部已显示工具。@return 例如：{'summary': {'grandTotal': 100}}。"""
         hidden_tools = set(self.get_settings().get('hiddenTools', []))
         tools = [name for name in TOOL_ORDER if name not in hidden_tools]
@@ -209,9 +239,7 @@ class TokenService:
 
         def load(name):
             try:
-                if not self._has_tool_data(name, TOOL_CONFIGS[name]):
-                    return []
-                records = self._load_records(name)
+                records = self._load_records(name, force_refresh=force_refresh)
                 # 不同工具可能使用相同会话编号，汇总前增加来源前缀避免会话数被合并。
                 return [{**record, 'sessionId': f"{name}:{record.get('sessionId', '')}"} for record in records]
             except Exception as error:
@@ -254,6 +282,8 @@ class TokenService:
                 'records': records,
                 'kind': kind,
             }
+            if kind.startswith('trae:'):
+                self._persistent_dirty.add(kind)
         return records
 
     def _drop_missing_cache(self, active_paths, kind):
@@ -265,7 +295,129 @@ class TokenService:
             ]
             for path in stale:
                 self._file_cache.pop(path, None)
+            if stale and kind.startswith('trae:'):
+                self._persistent_dirty.add(kind)
             return len(stale)
+
+    def _persistent_cache_path(self, kind):
+        """
+        返回持久解析缓存路径。
+
+        @param kind 例如：trae:trae-cn
+        @return 例如：C:/Users/demo/.dTools/temp/token-cache-trae-trae-cn.json
+        @author Y77H
+        @date 2026-08-06
+        """
+        safe_kind = re.sub(r'[^a-zA-Z0-9_-]+', '-', kind)
+        return os.path.join(TEMP_DIR, f'token-cache-{safe_kind}.json')
+
+    def _restore_persistent_cache(self, kind):
+        """
+        将 Trae 文件解析结果恢复到内存，程序重启后无需重新读取大日志。
+
+        @param kind 例如：trae:trae-intl
+        @return 例如：12
+        @author Y77H
+        @date 2026-08-06
+        """
+        with self._lock:
+            if kind in self._persistent_loaded:
+                return 0
+            self._persistent_loaded.add(kind)
+        try:
+            with open(self._persistent_cache_path(kind), 'r', encoding='utf-8') as file:
+                payload = json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return 0
+
+        restored = 0
+        with self._lock:
+            for path, item in (payload.get('files') or {}).items():
+                signature = item.get('signature') or []
+                records = item.get('records')
+                if len(signature) != 2 or not isinstance(records, list):
+                    continue
+                self._file_cache[path] = {
+                    'signature': (int(signature[0]), int(signature[1])),
+                    'records': records,
+                    'kind': kind,
+                }
+                restored += 1
+        return restored
+
+    def _save_persistent_cache(self, kind, active_paths):
+        """
+        原子保存 Trae 解析缓存，仅在文件变化后落盘。
+
+        @param kind 例如：trae:trae-cn
+        @param active_paths 例如：{'C:/logs/ai-agent_0_stdout.log'}
+        @return 例如：True
+        @author Y77H
+        @date 2026-08-06
+        """
+        cache_path = self._persistent_cache_path(kind)
+        with self._lock:
+            if kind not in self._persistent_dirty and os.path.isfile(cache_path):
+                return False
+            files = {
+                path: {
+                    'signature': list(item['signature']),
+                    'records': item['records'],
+                }
+                for path, item in self._file_cache.items()
+                if path in active_paths and item.get('kind') == kind
+            }
+        os.makedirs(TEMP_DIR, exist_ok=True)
+        temp_path = ''
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode='w', encoding='utf-8', suffix='.json.tmp',
+                prefix='token-cache-', dir=TEMP_DIR, delete=False,
+            ) as file:
+                temp_path = file.name
+                json.dump({'version': 1, 'files': files}, file, ensure_ascii=False)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp_path, cache_path)
+            with self._lock:
+                self._persistent_dirty.discard(kind)
+            return True
+        except OSError as error:
+            log_service.add(log_service.WARN, 'token', f'保存 {kind} 解析缓存失败: {error}')
+            return False
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+
+    def _remove_persistent_cache(self, kind=None):
+        """
+        删除指定或全部 Trae 持久缓存。
+
+        @param kind 例如：trae:trae-cn；None 表示全部
+        @return 例如：2
+        @author Y77H
+        @date 2026-08-06
+        """
+        if not os.path.isdir(TEMP_DIR):
+            return 0
+        paths = [self._persistent_cache_path(kind)] if kind else [
+            os.path.join(TEMP_DIR, name)
+            for name in os.listdir(TEMP_DIR)
+            if name.startswith('token-cache-trae-') and name.endswith('.json')
+        ]
+        removed = 0
+        for path in paths:
+            try:
+                os.remove(path)
+                removed += 1
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                log_service.add(log_service.WARN, 'token', f'删除解析缓存失败: {error}')
+        return removed
 
     def _load_claude_records(self, config):
         """增量加载 Claude JSONL。@return 例如：[{'model': 'claude'}]。"""
@@ -328,9 +480,11 @@ class TokenService:
         records = []
         label = config.get('label', tool)
         cache_kind = f'trae:{tool}'
+        self._restore_persistent_cache(cache_kind)
         for path in sorted(paths):
             records.extend(self._cached_parse(path, cache_kind, _parse_trae_file, label))
         self._drop_missing_cache(paths, cache_kind)
+        self._save_persistent_cache(cache_kind, paths)
 
         if not paths:
             log_service.add(log_service.WARN, 'token', f'{label} 未找到可解析日志')
@@ -353,11 +507,12 @@ class TokenService:
         self._drop_missing_cache(paths, 'codex')
         return _deduplicate_records(records)
 
-    def _load_usage_database_records(self, tool, config):
+    def _load_usage_database_records(self, tool, config, force_refresh=False):
         """
         从 OpenCode/MimoCode SQLite 中读取逐消息 Token 用量。
         @param tool 例如：opencode
         @param config 例如：{'db': 'C:/Users/demo/opencode.db'}
+        @param force_refresh 例如：True
         @return 例如：[{'model': 'mimo-v2.5', 'total': 1200}]
         """
         path = config.get('db', '')
@@ -367,7 +522,7 @@ class TokenService:
 
         with self._lock:
             cached = self._database_cache.get(tool)
-            if cached and cached.get('signature') == signature:
+            if not force_refresh and cached and cached.get('signature') == signature:
                 return cached['records']
 
         records = _parse_usage_database(path, bool(config.get('exclude_imports')))
