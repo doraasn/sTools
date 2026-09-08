@@ -112,11 +112,19 @@ class SyncService:
             self.save_config(config)
         return self.get_active()
 
-    def rename_config(self, new_name):
-        """重命名当前连接配置。@param new_name 例如：测试库。@return 例如：{'name': '测试库'}。"""
+    def rename_config(self, new_name, old_name=None):
+        """
+        重命名指定连接配置。
+
+        @param new_name 例如：测试库
+        @param old_name 例如：开发库；为空时使用当前配置
+        @return 例如：{'name': '测试库'}
+        @author Y77H
+        @date 2026-08-24
+        """
         with self._config_lock:
             config = self.load_config()
-            old_name = config.get('activeConfig', '')
+            old_name = old_name or config.get('activeConfig', '')
             configs = config.get('configs', {})
             if not old_name or not new_name or (new_name != old_name and new_name in configs):
                 return None
@@ -130,30 +138,61 @@ class SyncService:
             self.save_config(config)
             return {'ok': True, 'name': new_name}
 
-    def save_active(self, connection_data, table_config_data):
-        """保存当前连接和表配置。@return 例如：{'ok': True}。"""
+    def save_active(
+        self, connection_data, table_config_data,
+        config_name=None, table_config_name=None,
+    ):
+        """
+        保存指定连接和表配置，避免多标签页切换时写入其他方案。
+
+        @param connection_data 例如：{'source': {'host': '127.0.0.1'}}
+        @param table_config_data 例如：{'tables': {'demo': {'enable': True}}}
+        @param config_name 例如：开发环境
+        @param table_config_name 例如：近七天
+        @return 例如：{'ok': True, 'configName': '开发环境'}
+        @author Y77H
+        @date 2026-08-24
+        """
         with self._config_lock:
             config = self.load_config()
-            active_name = config.get('activeConfig', '')
-            if not active_name:
-                return {'error': '无激活配置'}
-            entry = config.setdefault('configs', {}).setdefault(active_name, {})
+            active_name = config_name or config.get('activeConfig', '')
+            configs = config.get('configs', {})
+            if active_name not in configs:
+                return {'error': '连接配置不存在或已被重命名'}
+            entry = configs[active_name]
             if connection_data:
                 entry.setdefault('source', {}).update(connection_data.get('source', {}))
                 entry.setdefault('target', {}).update(connection_data.get('target', {}))
             if table_config_data:
-                table_name = config.get('activeTableConfig', {}).get(active_name, '默认')
-                table_config = entry.setdefault('tableConfigs', {}).setdefault(table_name, {})
+                table_name = table_config_name or config.get('activeTableConfig', {}).get(active_name, '')
+                table_configs = entry.get('tableConfigs', {})
+                if table_name not in table_configs:
+                    return {'error': '表策略不存在或已被重命名'}
+                table_config = table_configs[table_name]
                 # 表配置是完整快照，删除源库已经移除的旧表配置。
                 table_config['tables'] = copy.deepcopy(table_config_data.get('tables', {}))
             self.save_config(config)
-            return {'ok': True}
+            return {
+                'ok': True,
+                'configName': active_name,
+                'tableConfigName': table_config_name or config.get(
+                    'activeTableConfig', {},
+                ).get(active_name, ''),
+            }
 
-    def switch_table_config(self, name):
-        """切换当前表配置。@param name 例如：近七天。@return 例如：{'name': '近七天'}。"""
+    def switch_table_config(self, name, config_name=None):
+        """
+        切换指定连接方案的表策略。
+
+        @param name 例如：近七天
+        @param config_name 例如：开发环境
+        @return 例如：{'name': '近七天', 'tables': {}}
+        @author Y77H
+        @date 2026-08-24
+        """
         with self._config_lock:
             config = self.load_config()
-            active = config.get('activeConfig', '')
+            active = config_name or config.get('activeConfig', '')
             entry = config.get('configs', {}).get(active, {})
             table_configs = entry.get('tableConfigs', {})
             if name not in table_configs:
@@ -162,11 +201,20 @@ class SyncService:
             self.save_config(config)
             return {'name': name, 'tables': table_configs[name].get('tables', {})}
 
-    def create_table_config(self, name, copy_from=None):
-        """新建表配置。@param name 例如：全量。@param copy_from 例如：默认。@return 例如：{'name': '全量'}。"""
+    def create_table_config(self, name, copy_from=None, config_name=None):
+        """
+        为指定连接方案新建表策略。
+
+        @param name 例如：全量
+        @param copy_from 例如：默认
+        @param config_name 例如：开发环境
+        @return 例如：{'name': '全量', 'tables': {}}
+        @author Y77H
+        @date 2026-08-24
+        """
         with self._config_lock:
             config = self.load_config()
-            active = config.get('activeConfig', '')
+            active = config_name or config.get('activeConfig', '')
             entry = config.get('configs', {}).get(active, {})
             table_configs = entry.setdefault('tableConfigs', {})
             if not name or name in table_configs:
@@ -178,14 +226,23 @@ class SyncService:
             self.save_config(config)
             return {'name': name, 'tables': data.get('tables', {})}
 
-    def rename_table_config(self, new_name):
-        """重命名当前表配置。@param new_name 例如：归档。@return 例如：{'name': '归档'}。"""
+    def rename_table_config(self, new_name, config_name=None, old_name=None):
+        """
+        重命名指定连接方案的表策略。
+
+        @param new_name 例如：归档
+        @param config_name 例如：开发环境
+        @param old_name 例如：近七天；为空时使用当前策略
+        @return 例如：{'name': '归档'}
+        @author Y77H
+        @date 2026-08-24
+        """
         with self._config_lock:
             config = self.load_config()
-            active = config.get('activeConfig', '')
+            active = config_name or config.get('activeConfig', '')
             entry = config.get('configs', {}).get(active, {})
             table_configs = entry.get('tableConfigs', {})
-            old_name = config.get('activeTableConfig', {}).get(active, '')
+            old_name = old_name or config.get('activeTableConfig', {}).get(active, '')
             if not old_name or not new_name or (new_name != old_name and new_name in table_configs):
                 return None
             data = table_configs.pop(old_name, None)
@@ -278,4 +335,3 @@ class SyncService:
 
 
 sync_service = SyncService()
-

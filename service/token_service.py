@@ -998,7 +998,8 @@ def aggregate_report(records):
         if session:
             sessions.add(session)
 
-    cell_list = [_public_bucket(item) for item in cells.values()]
+    # 日期筛选在前端完成，单元格需携带会话编号以便筛选后重新去重统计。
+    cell_list = [_public_bucket(item, include_session_ids=True) for item in cells.values()]
     cell_list.sort(key=lambda item: item['date'])
     model_list = [_public_bucket(item, grand_total) for item in models.values()]
     model_list.sort(key=lambda item: item['total'], reverse=True)
@@ -1033,10 +1034,21 @@ def _new_bucket(**identity):
     }
 
 
-def _public_bucket(bucket, grand_total=None):
-    """转换为 JSON 可序列化结构。@return 例如：{'sessions': 2, 'share': '10.0'}。"""
+def _public_bucket(bucket, grand_total=None, include_session_ids=False):
+    """
+    转换为 JSON 可序列化结构。
+
+    @param bucket 例如：{'total': 100, '_sessions': {'session-1'}}
+    @param grand_total 例如：1000
+    @param include_session_ids 例如：True
+    @return 例如：{'sessions': 1, 'sessionIds': ['session-1'], 'share': '10.0'}
+    @author Y77H
+    @date 2026-08-24
+    """
     result = {key: value for key, value in bucket.items() if key != '_sessions'}
     result['sessions'] = len(bucket['_sessions'])
+    if include_session_ids:
+        result['sessionIds'] = sorted(str(value) for value in bucket['_sessions'])
     if grand_total is not None:
         result['share'] = f"{bucket['total'] / grand_total * 100:.1f}" if grand_total else '0.0'
     return result

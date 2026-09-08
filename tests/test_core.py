@@ -10,6 +10,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import copy
 from unittest.mock import patch
 
 from app import app
@@ -22,7 +23,8 @@ from service.token_service import (
     _parse_usage_database,
     aggregate_report,
 )
-from task.sync_task import sync_task
+from service.sync_service import SyncService
+from task.sync_task import SyncTask, sync_task
 from util.db_util import quote_identifier
 
 
@@ -101,6 +103,7 @@ class TokenServiceTest(unittest.TestCase):
         self.assertEqual(38, report['summary']['grandTotal'])
         self.assertEqual(1, report['summary']['totalSessions'])
         self.assertEqual(1, report['models'][0]['sessions'])
+        self.assertEqual(['s1'], report['cells'][0]['sessionIds'])
 
     def test_codex_last_token_usage(self):
         """Codex 只使用单次调用 usage，并正确拆分缓存输入。@return 例如：None。"""
@@ -262,6 +265,68 @@ class SyncTaskTest(unittest.TestCase):
         self.assertEqual('`a``b`', quote_identifier('a`b'))
         with self.assertRaises(ValueError):
             quote_identifier('')
+
+    def test_invalid_tables_release_global_lock(self):
+        """
+        非法表配置不能导致同步锁永久占用。
+
+        @return 例如：None
+        @author Y77H
+        @date 2026-08-24
+        """
+        task = SyncTask()
+        invalid_events = list(task.run({}, {}, []))
+        next_events = list(task.run({}, {}, {}))
+        self.assertIn('格式无效', invalid_events[0]['msg'])
+        self.assertNotEqual('busy', next_events[0]['status'])
+
+    def test_time_mode_requires_field_and_valid_range(self):
+        """
+        时间模式缺少字段或日期格式错误时必须阻止全量查询。
+
+        @return 例如：None
+        @author Y77H
+        @date 2026-08-24
+        """
+        with self.assertRaisesRegex(ValueError, '必须选择时间字段'):
+            SyncTask._build_source_query('`demo`', '`id`', 'time', '', '')
+        with self.assertRaisesRegex(ValueError, '时间范围格式'):
+            SyncTask._build_source_query(
+                '`demo`', '`id`', 'time', 'create_time', '2026-08-01',
+            )
+
+
+class SyncServiceTest(unittest.TestCase):
+    """同步配置并发边界测试。"""
+
+    def test_named_save_does_not_follow_global_active_config(self):
+        """
+        显式保存 A 方案时，即使全局当前为 B 也不能串写。
+
+        @return 例如：None
+        @author Y77H
+        @date 2026-08-24
+        """
+        service = SyncService()
+        config = {
+            'activeConfig': 'B',
+            'activeTableConfig': {'A': '策略A', 'B': '策略B'},
+            'configs': {
+                'A': {'source': {'host': 'old-a'}, 'target': {}, 'tableConfigs': {'策略A': {'tables': {}}}},
+                'B': {'source': {'host': 'old-b'}, 'target': {}, 'tableConfigs': {'策略B': {'tables': {}}}},
+            },
+        }
+        saved = []
+        with patch.object(service, 'load_config', return_value=copy.deepcopy(config)), \
+                patch.object(service, 'save_config', side_effect=lambda value: saved.append(value)):
+            result = service.save_active(
+                {'source': {'host': 'new-a'}, 'target': {}},
+                {'tables': {'demo': {'enable': True}}}, 'A', '策略A',
+            )
+        self.assertTrue(result['ok'])
+        self.assertEqual('new-a', saved[0]['configs']['A']['source']['host'])
+        self.assertEqual('old-b', saved[0]['configs']['B']['source']['host'])
+        self.assertIn('demo', saved[0]['configs']['A']['tableConfigs']['策略A']['tables'])
 
 
 if __name__ == '__main__':

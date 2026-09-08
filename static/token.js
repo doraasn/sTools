@@ -1,7 +1,12 @@
 (() => {
   'use strict';
   const { $, api, escapeHTML, toast, openModal, closeModal, formatNumber } = window.dTools;
-  const COLORS = ['#3b82f6', '#22c55e', '#06b6d4', '#f59e0b', '#f43f5e', '#14b8a6', '#84cc16', '#eab308', '#64748b', '#fb7185'];
+  const COLORS = [
+    '#3b82f6', '#22c55e', '#06b6d4', '#f59e0b', '#f43f5e',
+    '#14b8a6', '#84cc16', '#eab308', '#64748b', '#fb7185',
+    '#f97316', '#0ea5e9', '#10b981', '#ef4444', '#6366f1',
+    '#a16207', '#2563eb', '#16a34a', '#0891b2', '#78716c',
+  ];
   let currentTool = '';
   let availableTools = [];
   let catalogTools = [];
@@ -15,6 +20,8 @@
   let hiddenModels = new Set();
   let charts = { daily: null, model: null, project: null };
   let loading = false;
+  let loadRequestId = 0;
+  let loadController = null;
 
   const themeColors = () => {
     const style = getComputedStyle(document.documentElement);
@@ -90,16 +97,25 @@
     const cells = data.cells.filter((cell) => (!start || cell.date >= start) && (!end || cell.date <= end));
     const modelMap = new Map();
     const projectMap = new Map();
+    const sessionIds = new Set();
     cells.forEach((cell) => {
+      (cell.sessionIds || []).forEach((sessionId) => sessionIds.add(sessionId));
       for (const [map, name] of [[modelMap, cell.model], [projectMap, cell.project]]) {
-        const bucket = map.get(name) || { name, total: 0, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, sessions: 0 };
-        ['total', 'input', 'output', 'cacheRead', 'cacheCreate', 'sessions'].forEach((key) => { bucket[key] += cell[key] || 0; });
+        const bucket = map.get(name) || { name, total: 0, input: 0, output: 0, cacheRead: 0, cacheCreate: 0, sessionIds: new Set() };
+        ['total', 'input', 'output', 'cacheRead', 'cacheCreate'].forEach((key) => { bucket[key] += cell[key] || 0; });
+        (cell.sessionIds || []).forEach((sessionId) => bucket.sessionIds.add(sessionId));
         map.set(name, bucket);
       }
     });
     const total = cells.reduce((sum, cell) => sum + cell.total, 0);
-    const models = [...modelMap.values()].sort((a, b) => b.total - a.total);
-    const projects = [...projectMap.values()].sort((a, b) => b.total - a.total);
+    const finalizeItems = (map) => [...map.values()]
+      .map((item) => {
+        const { sessionIds: itemSessionIds, ...values } = item;
+        return { ...values, sessions: itemSessionIds.size };
+      })
+      .sort((a, b) => b.total - a.total);
+    const models = finalizeItems(modelMap);
+    const projects = finalizeItems(projectMap);
     [...models, ...projects].forEach((item) => { item.share = total ? (item.total / total * 100).toFixed(1) : '0.0'; });
     return {
       cells, models, projects,
@@ -108,7 +124,7 @@
         totalDays: new Set(cells.map((cell) => cell.date)).size,
         totalModels: models.length,
         totalProjects: projects.length,
-        totalSessions: data.summary.totalSessions,
+        totalSessions: sessionIds.size,
       },
     };
   }
@@ -268,7 +284,7 @@
 
   function renderDailyLegend(models) {
     $('dailyLegend').innerHTML = models.map((model, index) => `
-      <button class="legend-item${hiddenModels.has(model.name) ? ' off' : ''}" type="button" data-model-index="${index}">
+      <button class="legend-item${hiddenModels.has(model.name) ? ' off' : ''}" type="button" data-model-index="${index}" aria-pressed="${!hiddenModels.has(model.name)}">
         <span class="legend-color" style="background:${COLORS[index % COLORS.length]}"></span>${escapeHTML(model.name)}
       </button>`).join('');
   }
@@ -281,20 +297,29 @@
     const count = items.length;
     $(`${kind}Count`).textContent = `${count} 个${kind === 'model' ? '模型' : '项目'}`;
     $(`${kind}Center`).textContent = count;
-    list.innerHTML = items.length ? items.slice(0, 8).map((item, index) => `
+    const chartItems = items.length > 8 ? [
+      ...items.slice(0, 8),
+      {
+        name: '其他',
+        total: items.slice(8).reduce((sum, item) => sum + item.total, 0),
+        sessions: items.slice(8).reduce((sum, item) => sum + item.sessions, 0),
+        share: items.slice(8).reduce((sum, item) => sum + Number(item.share || 0), 0).toFixed(1),
+      },
+    ] : items;
+    list.innerHTML = chartItems.length ? chartItems.map((item, index) => `
       <div class="rank-row">
         <span class="rank-color" style="background:${COLORS[index % COLORS.length]}"></span>
         <span class="rank-copy"><strong title="${escapeHTML(item.name)}">${escapeHTML(item.name)}</strong><small>${item.sessions || 0} 会话</small></span>
         <span class="rank-value"><strong>${formatNumber(item.total)}</strong><small>${item.share}%</small></span>
       </div>`).join('') : '<div class="empty-state compact">暂无数据</div>';
-    if (!items.length || typeof Chart === 'undefined') return;
+    if (!chartItems.length || typeof Chart === 'undefined') return;
     const colors = themeColors();
     charts[kind] = new Chart(canvas, {
       type: 'doughnut',
-      data: { labels: items.map((item) => item.name), datasets: [{ data: items.map((item) => item.total), backgroundColor: items.map((_, i) => COLORS[i % COLORS.length]), borderWidth: 0, hoverOffset: 6 }] },
+      data: { labels: chartItems.map((item) => item.name), datasets: [{ data: chartItems.map((item) => item.total), backgroundColor: chartItems.map((_, i) => COLORS[i % COLORS.length]), borderWidth: 0, hoverOffset: 6 }] },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: '72%',
-        plugins: { legend: { display: false }, tooltip: { backgroundColor: colors.surface, titleColor: colors.text, bodyColor: colors.text2, borderColor: colors.line, borderWidth: 1, callbacks: { label: (item) => ` ${formatNumber(item.raw)} · ${items[item.dataIndex].share}%` } } },
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: colors.surface, titleColor: colors.text, bodyColor: colors.text2, borderColor: colors.line, borderWidth: 1, callbacks: { label: (item) => ` ${formatNumber(item.raw)} · ${chartItems[item.dataIndex].share}%` } } },
       },
     });
   }
@@ -311,28 +336,49 @@
   }
 
   async function loadData(showLoading = true, forceRefresh = false) {
-    if (loading || !currentTool) return;
+    if (!currentTool) return false;
+    const requestedTool = currentTool;
+    const requestId = ++loadRequestId;
+    loadController?.abort();
+    const controller = new AbortController();
+    loadController = controller;
     loading = true;
     if (showLoading) $('tokenLoading').classList.add('show');
     $('tokenRefresh').disabled = true;
     try {
       const refreshQuery = forceRefresh ? '&refresh=1' : '';
-      rawData = await api(`/api/tokens?tool=${encodeURIComponent(currentTool)}${refreshQuery}`);
+      const result = await api(`/api/tokens?tool=${encodeURIComponent(requestedTool)}${refreshQuery}`, { signal: controller.signal });
+      if (requestId !== loadRequestId || requestedTool !== currentTool) return null;
+      rawData = result;
       data = rawData;
       renderAll();
       $('tokenUpdated').textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
       if (typeof Chart === 'undefined') toast('图表组件未加载', '请检查本机网络后刷新页面', 'warning', 5000);
+      return true;
     } catch (error) {
+      if (error.name === 'AbortError' || requestId !== loadRequestId) return null;
       toast('Token 数据加载失败', error.message, 'error', 5000);
+      if (!data) {
+        ['metricTotal', 'metricCache', 'metricSessions', 'metricDays', 'metricProjects'].forEach((id) => {
+          $(id).textContent = '—';
+          $(id).classList.remove('skeleton');
+        });
+        $('dailyEmpty').textContent = '数据加载失败，请稍后重试';
+        $('dailyEmpty').classList.add('show');
+      }
+      return false;
     } finally {
-      loading = false;
-      $('tokenLoading').classList.remove('show');
-      $('tokenRefresh').disabled = false;
+      if (requestId === loadRequestId) {
+        loading = false;
+        $('tokenLoading').classList.remove('show');
+        $('tokenRefresh').disabled = false;
+      }
     }
   }
 
   async function renderSettings() {
     const body = $('tokenSettingsBody');
+    $('tokenSettingsSave').disabled = true;
     body.innerHTML = '<div class="settings-loading"><span class="spinner"></span><span>正在读取工具设置…</span></div>';
     settingsClaudeProjects = [];
     if (catalogTools.some((tool) => tool.name === 'claude' && tool.hasData)) {
@@ -349,28 +395,34 @@
       } else if (tool.name === 'claude') {
         detail = `<div class="claude-project-settings"><p>项目显示与别名</p>${settingsClaudeProjects.map((project, index) => `
           <div class="project-setting">
-            <label class="switch"><input type="checkbox" data-project-visible="${index}" ${hiddenProjects.includes(project.name) ? '' : 'checked'}><span></span></label>
+            <label class="switch"><input type="checkbox" aria-label="展示项目 ${escapeHTML(project.name)}" data-project-visible="${index}" ${hiddenProjects.includes(project.name) ? '' : 'checked'}><span></span></label>
             <span class="project-original" title="${escapeHTML(project.name)}">${escapeHTML(project.name)}</span>
-            <input class="input" data-project-alias="${index}" value="${escapeHTML(aliases[project.name] || '')}" placeholder="显示名称">
+            <input class="input" aria-label="${escapeHTML(project.name)} 显示名称" data-project-alias="${index}" value="${escapeHTML(aliases[project.name] || '')}" placeholder="显示名称">
           </div>`).join('') || '<div class="empty-state compact">暂无项目</div>'}</div>`;
       }
       return `<section class="tool-setting-card" data-setting-tool="${tool.name}">
         <header class="tool-setting-head">
           <div><h3>${escapeHTML(tool.label)}</h3><span class="tool-data-state ${tool.hasData ? 'ready' : ''}">${tool.hasData ? '已检测到数据' : '暂无数据'}</span></div>
-          <label class="visibility-control"><span>展示</span><span class="switch"><input type="checkbox" data-tool-visible="${tool.name}" ${tool.visible ? 'checked' : ''}><span></span></span></label>
+          <label class="visibility-control"><span>展示</span><span class="switch"><input type="checkbox" aria-label="展示 ${escapeHTML(tool.label)}" data-tool-visible="${tool.name}" ${tool.visible ? 'checked' : ''}><span></span></span></label>
         </header>
         <div class="tool-setting-detail">${detail}</div>
       </section>`;
     }).join('')}</div>`;
+    $('tokenSettingsSave').disabled = false;
   }
 
   $('toolSwitch').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-tool]');
     if (!button || button.dataset.tool === currentTool) return;
+    const previousTool = currentTool;
     currentTool = button.dataset.tool;
     hiddenModels = new Set();
     $('toolSwitch').querySelectorAll('.segment').forEach((item) => item.classList.toggle('active', item === button));
-    await loadData();
+    const loaded = await loadData();
+    if (loaded === false) {
+      currentTool = previousTool;
+      renderToolSwitch();
+    }
   });
   $('periodGroup').addEventListener('click', (event) => {
     const button = event.target.closest('[data-period]');
@@ -394,36 +446,55 @@
     renderDaily(view);
   });
   $('tokenRefresh').addEventListener('click', () => loadData(false, true));
-  $('tokenSettings').addEventListener('click', () => {
+  $('tokenSettings').addEventListener('click', async () => {
     openModal('tokenSettingsModal');
-    renderSettings().catch((error) => { $('tokenSettingsBody').innerHTML = `<div class="empty-state compact">${escapeHTML(error.message)}</div>`; });
+    try {
+      await renderSettings();
+    } catch (error) {
+      $('tokenSettingsSave').disabled = true;
+      $('tokenSettingsBody').innerHTML = `<div class="empty-state compact">${escapeHTML(error.message)}</div>`;
+    }
   });
   $('tokenSettingsSave').addEventListener('click', async () => {
     const saveButton = $('tokenSettingsSave');
     if (saveButton.disabled) return;
     saveButton.disabled = true;
     saveButton.textContent = '保存中…';
-    settings.hiddenTools = catalogTools
-      .filter((tool) => !document.querySelector(`[data-tool-visible="${tool.name}"]`)?.checked)
+    const nextSettings = { ...settings };
+    const nextAliases = { ...aliases };
+    let nextHiddenProjects = [...hiddenProjects];
+    nextSettings.hiddenTools = catalogTools
+      .filter((tool) => {
+        const control = document.querySelector(`[data-tool-visible="${tool.name}"]`);
+        return control ? !control.checked : (settings.hiddenTools || []).includes(tool.name);
+      })
       .map((tool) => tool.name);
     ['trae-intl', 'trae-cn'].forEach((name) => {
-      settings[name] = document.querySelector(`[data-tool-path="${name}"]`)?.value.trim() || '';
+      const input = document.querySelector(`[data-tool-path="${name}"]`);
+      if (input) nextSettings[name] = input.value.trim();
     });
     settingsClaudeProjects.forEach((project, index) => {
       const visible = document.querySelector(`[data-project-visible="${index}"]`)?.checked;
       const alias = document.querySelector(`[data-project-alias="${index}"]`)?.value.trim();
-      hiddenProjects = visible ? hiddenProjects.filter((name) => name !== project.name) : [...new Set([...hiddenProjects, project.name])];
-      if (alias) aliases[project.name] = alias; else delete aliases[project.name];
+      nextHiddenProjects = visible ? nextHiddenProjects.filter((name) => name !== project.name) : [...new Set([...nextHiddenProjects, project.name])];
+      if (alias) nextAliases[project.name] = alias; else delete nextAliases[project.name];
     });
-    settings.aliases = aliases;
-    settings.hiddenProjects = hiddenProjects;
+    nextSettings.aliases = nextAliases;
+    nextSettings.hiddenProjects = nextHiddenProjects;
     try {
-      await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
+      await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nextSettings) });
+      settings = nextSettings;
+      aliases = nextAliases;
+      hiddenProjects = nextHiddenProjects;
       saveLocalSettings();
       closeModal('tokenSettingsModal');
-      toast('设置已保存', '正在刷新受影响的数据', 'success');
-      await loadTools();
-      if (currentTool) await loadData(false);
+      toast('设置已保存', '', 'success');
+      try {
+        await loadTools();
+        if (currentTool) await loadData(false);
+      } catch (refreshError) {
+        toast('数据刷新失败', `设置已保存：${refreshError.message}`, 'warning', 5000);
+      }
     } catch (error) {
       toast('设置保存失败', error.message, 'error');
       return;
@@ -450,6 +521,7 @@
     }
     if (currentTool) await loadData();
     else $('tokenLoading').classList.remove('show');
-    setInterval(() => { if (!document.hidden) loadData(false, true); }, 60000);
+    // 自动刷新遵循两分钟内存缓存；手动点击“刷新”才强制检查全部数据源。
+    setInterval(() => { if (!document.hidden) loadData(false); }, 60000);
   })();
 })();

@@ -4,7 +4,11 @@
   let tables = {};
   let columnCache = {};
   let connectionReady = { source: false, target: false };
+  let testedConnection = { source: '', target: '' };
   let saveTimer = null;
+  let saveQueue = Promise.resolve(true);
+  let activeConfigName = '';
+  let activeTableConfigName = '';
   let running = false;
   let nameAction = null;
 
@@ -38,11 +42,22 @@
     }
   }
 
-  function setConnectionState(side, result = null) {
+  const connectionFingerprint = (config) => JSON.stringify([
+    config.dbType || 'mysql', config.host || '', Number(config.port) || 3306,
+    config.user || '', config.password || '', config.database || '',
+  ]);
+
+  function setConnectionState(side, result = null, testedConfig = null) {
     const element = $(`${side}State`);
     element.classList.remove('success', 'error');
-    if (!result) { element.innerHTML = '<span class="dot"></span>未检测'; connectionReady[side] = false; return; }
+    if (!result) {
+      element.innerHTML = '<span class="dot"></span>未检测';
+      connectionReady[side] = false;
+      testedConnection[side] = '';
+      return;
+    }
     connectionReady[side] = Boolean(result.ok);
+    testedConnection[side] = result.ok && testedConfig ? connectionFingerprint(testedConfig) : '';
     element.classList.add(result.ok ? 'success' : 'error');
     element.innerHTML = `<span class="dot ${result.ok ? 'success' : 'danger'}"></span>${escapeHTML(result.ok ? `${result.version} · ${result.tables} 表` : '连接失败')}`;
     element.title = result.error || '';
@@ -75,6 +90,8 @@
   async function loadActiveConfig() {
     try {
       const result = await api('/api/sync/config');
+      activeConfigName = result.config?.name || '';
+      activeTableConfigName = result.tableConfig?.name || '';
       writeConnections(result.config || {});
       tables = result.tableConfig?.tables || {};
       await loadConfigList(result.config?.name || '');
@@ -89,22 +106,46 @@
     }
   }
 
-  async function saveConfig(showToast = false) {
-    setSaveState('正在保存');
-    try {
-      await api('/api/sync/config', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: readConnections(), tableConfig: { tables } }),
-      });
-      setSaveState('已自动保存', 'success');
-      if (showToast) toast('配置已保存', '', 'success');
-    } catch (error) { setSaveState('保存失败', 'danger'); if (showToast) toast('保存失败', error.message, 'error'); }
+  function saveConfig(showToast = false) {
+    // 调用时立即拍摄快照，后续即使切换方案也只会保存到原来的目标。
+    const payload = {
+      configName: activeConfigName,
+      tableConfigName: activeTableConfigName,
+      config: readConnections(),
+      tableConfig: { tables: JSON.parse(JSON.stringify(tables)) },
+    };
+    saveQueue = saveQueue.catch(() => false).then(async () => {
+      setSaveState('正在保存');
+      try {
+        await api('/api/sync/config', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        setSaveState('已自动保存', 'success');
+        if (showToast) toast('配置已保存', '', 'success');
+        return true;
+      } catch (error) {
+        setSaveState('保存失败', 'danger');
+        if (showToast) toast('保存失败', error.message, 'error');
+        return false;
+      }
+    });
+    return saveQueue;
   }
 
   function scheduleSave() {
     clearTimeout(saveTimer);
     setSaveState('等待保存');
-    saveTimer = setTimeout(() => saveConfig(false), 800);
+    saveTimer = setTimeout(() => { saveTimer = null; saveConfig(false); }, 800);
+  }
+
+  function flushPendingSave() {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      return saveConfig(false);
+    }
+    return saveQueue.catch(() => false);
   }
 
   function openNameModal(title, hint, value, action) {
@@ -125,20 +166,27 @@
   }
 
   const createConfigAction = async (name) => {
+    await flushPendingSave();
     await api('/api/sync/config/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
     await loadActiveConfig(); toast('连接方案已创建', name, 'success');
   };
   const renameConfigAction = async (name) => {
-    await api('/api/sync/config/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    await flushPendingSave();
+    await api('/api/sync/config/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, oldName: activeConfigName }) });
+    activeConfigName = name;
     await loadConfigList(name); toast('连接方案已重命名', name, 'success');
   };
   const createTableConfigAction = async (name) => {
-    const result = await api('/api/sync/table-config/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, copyFrom: $('tableConfigSelect').value }) });
-    tables = result.tables || {}; const names = await api('/api/sync/table-configs'); fillTableConfigList(names, name); renderTables(); toast('表策略已创建', name, 'success');
+    await flushPendingSave();
+    const result = await api('/api/sync/table-config/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, configName: activeConfigName, copyFrom: activeTableConfigName }) });
+    activeTableConfigName = name;
+    tables = result.tables || {}; const names = await api(`/api/sync/table-configs?config=${encodeURIComponent(activeConfigName)}`); fillTableConfigList(names, name); renderTables(); toast('表策略已创建', name, 'success');
   };
   const renameTableConfigAction = async (name) => {
-    await api('/api/sync/table-config/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
-    const names = await api('/api/sync/table-configs'); fillTableConfigList(names, name); toast('表策略已重命名', name, 'success');
+    await flushPendingSave();
+    await api('/api/sync/table-config/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, configName: activeConfigName, oldName: activeTableConfigName }) });
+    activeTableConfigName = name;
+    const names = await api(`/api/sync/table-configs?config=${encodeURIComponent(activeConfigName)}`); fillTableConfigList(names, name); toast('表策略已重命名', name, 'success');
   };
 
   async function testConnections() {
@@ -146,8 +194,9 @@
     button.disabled = true; button.innerHTML = '<span class="spinner"></span>正在连接';
     appendConsole('正在并行测试源库与目标库...', 'info');
     try {
-      const result = await api('/api/sync/test-connection', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(readConnections()) });
-      setConnectionState('source', result.source); setConnectionState('target', result.target);
+      const connections = readConnections();
+      const result = await api('/api/sync/test-connection', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(connections) });
+      setConnectionState('source', result.source, connections.source); setConnectionState('target', result.target, connections.target);
       for (const side of ['source', 'target']) appendConsole(`${side === 'source' ? '源库' : '目标库'}：${result[side].ok ? `${result[side].version}，${result[side].tables} 张表` : result[side].error}`, result[side].ok ? 'success' : 'error');
       if (result.source.ok) await loadTables();
       if (result.source.ok && result.target.ok) { toast('连接测试通过', '源库和目标库均可用', 'success'); await saveConfig(false); }
@@ -228,9 +277,18 @@
     if (running) return;
     const enabledCount = Object.values(tables).filter((table) => table.enable).length;
     if (!enabledCount) { toast('没有选择数据表', '请至少选择一张表', 'warning'); return; }
-    if (!connectionReady.source || !connectionReady.target) { toast('连接尚未就绪', '请先完成源库和目标库测试', 'warning'); return; }
-    await saveConfig(false);
+    const currentConnections = readConnections();
+    const connectionChanged = ['source', 'target'].some((side) => (
+      testedConnection[side] !== connectionFingerprint(currentConnections[side])
+    ));
+    if (!connectionReady.source || !connectionReady.target || connectionChanged) { toast('连接尚未就绪', '连接信息已变化，请重新测试源库和目标库', 'warning'); return; }
+    // 在第一次异步等待前锁定按钮，避免双击或快捷键并发启动两个请求。
     setRunning(true);
+    if (!await saveConfig(false)) {
+      toast('配置保存失败', '同步任务未启动，请先检查配置', 'error');
+      setRunning(false);
+      return;
+    }
     $('runStatus').textContent = '任务运行中';
     appendConsole(`启动同步，共 ${enabledCount} 张表`, 'info');
     try {
@@ -281,20 +339,46 @@
     tables[table][key] = element.type === 'checkbox' ? element.checked : element.value;
     renderTables(); scheduleSave();
   });
-  document.querySelectorAll('[data-connection]').forEach((container) => container.addEventListener('change', () => {
-    setConnectionState(container.dataset.connection); scheduleSave();
-  }));
+  document.querySelectorAll('[data-connection]').forEach((container) => {
+    const handleConnectionChange = () => {
+      setConnectionState(container.dataset.connection);
+      scheduleSave();
+    };
+    container.addEventListener('input', handleConnectionChange);
+    container.addEventListener('change', handleConnectionChange);
+  });
   document.querySelectorAll('.password-toggle').forEach((button) => button.addEventListener('click', () => {
     const input = $(button.dataset.password); input.type = input.type === 'password' ? 'text' : 'password';
   }));
 
   $('configSelect').addEventListener('change', async () => {
-    const result = await api('/api/sync/config/switch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('configSelect').value }) });
-    writeConnections(result.config); tables = result.tableConfig?.tables || {}; columnCache = {}; fillTableConfigList(result.tableConfigNames || [], result.tableConfig?.name); setConnectionState('source'); setConnectionState('target'); renderTables();
+    const select = $('configSelect');
+    const nextName = select.value;
+    select.disabled = true;
+    try {
+      await flushPendingSave();
+      const result = await api('/api/sync/config/switch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nextName }) });
+      activeConfigName = result.config?.name || nextName;
+      activeTableConfigName = result.tableConfig?.name || '';
+      writeConnections(result.config); tables = result.tableConfig?.tables || {}; columnCache = {}; fillTableConfigList(result.tableConfigNames || [], activeTableConfigName); setConnectionState('source'); setConnectionState('target'); renderTables();
+    } catch (error) {
+      select.value = activeConfigName;
+      toast('切换连接方案失败', error.message, 'error');
+    } finally { select.disabled = false; }
   });
   $('tableConfigSelect').addEventListener('change', async () => {
-    const result = await api('/api/sync/table-config/switch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('tableConfigSelect').value }) });
-    tables = result.tables || {}; renderTables();
+    const select = $('tableConfigSelect');
+    const nextName = select.value;
+    select.disabled = true;
+    try {
+      await flushPendingSave();
+      const result = await api('/api/sync/table-config/switch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nextName, configName: activeConfigName }) });
+      activeTableConfigName = result.name || nextName;
+      tables = result.tables || {}; renderTables();
+    } catch (error) {
+      select.value = activeTableConfigName;
+      toast('切换表策略失败', error.message, 'error');
+    } finally { select.disabled = false; }
   });
   $('createConfig').addEventListener('click', () => openNameModal('新建连接方案', '例如：开发环境、本地备份', '', createConfigAction));
   $('renameConfig').addEventListener('click', () => openNameModal('重命名连接方案', '名称仅用于本地识别', $('configSelect').value, renameConfigAction));
@@ -322,4 +406,3 @@
     } catch (error) { toast('同步工作台初始化失败', error.message, 'error', 5000); }
   })();
 })();
-

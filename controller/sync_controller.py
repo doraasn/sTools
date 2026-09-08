@@ -45,7 +45,10 @@ def save_sync_config():
     data = _body()
     if data is None:
         return jsonify({'error': '无效的请求数据'}), 400
-    result = sync_service.save_active(data.get('config'), data.get('tableConfig'))
+    result = sync_service.save_active(
+        data.get('config'), data.get('tableConfig'),
+        data.get('configName'), data.get('tableConfigName'),
+    )
     return jsonify(result), (400 if result.get('error') else 200)
 
 
@@ -95,7 +98,7 @@ def rename_sync_config():
     """重命名连接配置。@return 例如：{'name': '测试'}。"""
     data = _body()
     name = (data or {}).get('name', '').strip()
-    result = sync_service.rename_config(name)
+    result = sync_service.rename_config(name, (data or {}).get('oldName'))
     return jsonify(result) if result else (jsonify({'error': '重命名失败'}), 400)
 
 
@@ -109,7 +112,9 @@ def list_table_configs():
 def switch_table_config():
     """切换表配置。@return 例如：{'name': '默认', 'tables': {}}。"""
     data = _body()
-    result = sync_service.switch_table_config((data or {}).get('name', ''))
+    result = sync_service.switch_table_config(
+        (data or {}).get('name', ''), (data or {}).get('configName'),
+    )
     return jsonify(result) if result else (jsonify({'error': '表配置不存在'}), 404)
 
 
@@ -120,7 +125,9 @@ def create_table_config():
     name = (data or {}).get('name', '').strip()
     if not name:
         return jsonify({'error': '名称不能为空'}), 400
-    result = sync_service.create_table_config(name, data.get('copyFrom'))
+    result = sync_service.create_table_config(
+        name, data.get('copyFrom'), data.get('configName'),
+    )
     return jsonify(result) if result else (jsonify({'error': '表配置名已存在'}), 409)
 
 
@@ -128,7 +135,10 @@ def create_table_config():
 def rename_table_config():
     """重命名表配置。@return 例如：{'name': '归档'}。"""
     data = _body()
-    result = sync_service.rename_table_config((data or {}).get('name', '').strip())
+    result = sync_service.rename_table_config(
+        (data or {}).get('name', '').strip(),
+        (data or {}).get('configName'), (data or {}).get('oldName'),
+    )
     return jsonify(result) if result else (jsonify({'error': '重命名失败'}), 400)
 
 
@@ -189,4 +199,3 @@ def execute_sync():
             'X-Accel-Buffering': 'no',
         },
     )
-

@@ -38,10 +38,26 @@ class SyncTask:
 
         source_connection = target_connection = None
         started_at = time.time()
-        enabled = [(name, config) for name, config in tables.items() if config.get('enable')]
+        enabled = []
         success_count = failed_count = processed_total = affected_total = 0
 
         try:
+            # 获取全局任务锁后再校验全部外部输入，确保任何异常都会进入 finally 释放锁。
+            if not isinstance(tables, dict):
+                yield self._event('数据表配置格式无效', 'error', 'failed')
+                yield self._event('__DONE__', 'error', 'failed')
+                return
+            invalid_tables = [
+                name for name, config in tables.items()
+                if not isinstance(name, str) or not isinstance(config, dict)
+            ]
+            if invalid_tables:
+                yield self._event('存在无效的数据表配置', 'error', 'failed')
+                yield self._event('__DONE__', 'error', 'failed')
+                return
+            enabled = [
+                (name, config) for name, config in tables.items() if config.get('enable')
+            ]
             if not enabled:
                 yield self._event('没有启用的数据表', 'error', 'failed')
                 yield self._event('__DONE__', 'error', 'failed')
@@ -215,15 +231,34 @@ class SyncTask:
 
     @staticmethod
     def _build_source_query(table, columns, mode, time_field, time_range):
-        """构建参数化源查询。@return 例如：('SELECT ... WHERE `time` >= %s', ['2026-08-01'])。"""
+        """
+        构建参数化源查询，只有显式全量模式才允许省略 WHERE。
+
+        @param table 例如：`gas_daily`
+        @param columns 例如：`id`, `create_time`
+        @param mode 例如：time
+        @param time_field 例如：create_time
+        @param time_range 例如：2026-08-01 ~ 2026-08-06
+        @return 例如：('SELECT ... WHERE `create_time` >= %s', ['2026-08-01'])
+        @author Y77H
+        @date 2026-08-24
+        """
         query = f'SELECT {columns} FROM {table}'
-        if mode == 'all' or not time_field:
+        if mode == 'all':
             return query, []
+        if mode != 'time':
+            raise ValueError(f'不支持的同步模式: {mode}')
+        if not time_field:
+            raise ValueError('时间范围模式必须选择时间字段')
         quoted_time = quote_identifier(time_field)
-        if time_range and '~' in time_range:
+        if time_range:
+            if '~' not in time_range:
+                raise ValueError('时间范围格式应为：开始日期 ~ 结束日期')
             start_text, end_text = [part.strip() for part in time_range.split('~', 1)]
-            datetime.strptime(start_text, '%Y-%m-%d')
+            start_date = datetime.strptime(start_text, '%Y-%m-%d')
             end_date = datetime.strptime(end_text, '%Y-%m-%d') + timedelta(days=1)
+            if start_date >= end_date:
+                raise ValueError('开始日期不能晚于结束日期')
             return (
                 f'{query} WHERE {quoted_time} >= %s AND {quoted_time} < %s',
                 [start_text, end_date.strftime('%Y-%m-%d')],
@@ -238,4 +273,3 @@ class SyncTask:
 
 
 sync_task = SyncTask()
-
